@@ -1,33 +1,55 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { signIn } from "next-auth/react" // Import signIn
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { MessageSquare } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert" // Import Alert components
+import { AlertCircle } from "lucide-react" // Import icon for alert
 
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null) // State for error messages
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError(null) // Clear previous errors
 
-    // In a real app, this would be an API call to authenticate the user
-    // For demo purposes, we'll just simulate a login
-    setTimeout(() => {
+    try {
+      const result = await signIn("credentials", {
+        redirect: false, // Prevent NextAuth from redirecting automatically
+        email,
+        password,
+      })
+
+      if (result?.error) {
+        // Handle sign-in errors (e.g., invalid credentials)
+        setError(result.error === "CredentialsSignin" ? "Invalid email or password." : "An unexpected error occurred. Please try again.")
+        console.error("Sign-in error:", result.error)
+      } else if (result?.ok) {
+        // Redirect to dashboard after successful login
+        router.push("/dashboard")
+        router.refresh() // Optional: Refresh server components
+      } else {
+        // Handle other unexpected cases
+         setError("An unexpected error occurred during login.")
+      }
+    } catch (err) {
+      console.error("Login submission error:", err)
+      setError("An error occurred while trying to log in.")
+    } finally {
       setIsLoading(false)
-      // Redirect to dashboard after successful login
-      router.push("/dashboard")
-    }, 1000)
+    }
   }
 
   return (
@@ -43,6 +65,14 @@ export default function LoginPage() {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {/* Display error message if present */}
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Login Failed</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input

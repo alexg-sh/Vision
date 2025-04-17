@@ -3,6 +3,9 @@ import "@/app/globals.css"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
+import AuthProvider from "@/components/auth/session-provider" // Import AuthProvider
+import { getServerSession } from "next-auth/next" // Import getServerSession
+import { authOptions } from "@/app/api/auth/[...nextauth]/route" // Import authOptions
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -13,17 +16,23 @@ export const metadata: Metadata = {
     generator: 'v0.dev'
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Fetch session on the server
+  const session = await getServerSession(authOptions)
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          {children}
-        </ThemeProvider>
+        {/* Wrap ThemeProvider and children with AuthProvider */}
+        <AuthProvider session={session}>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+            {children}
+          </ThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   )

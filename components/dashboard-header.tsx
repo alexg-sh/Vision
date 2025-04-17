@@ -34,8 +34,10 @@ import {
 import { useRouter } from "next/navigation"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Badge } from "@/components/ui/badge"
+import { useSession, signOut } from "next-auth/react"
 
 export default function DashboardHeader() {
+  const { data: session, status } = useSession()
   const router = useRouter()
   const [showNotifications, setShowNotifications] = useState(false)
 
@@ -70,8 +72,7 @@ export default function DashboardHeader() {
   const unreadCount = notifications.filter((n) => !n.read).length
 
   const handleLogout = () => {
-    // In a real app, this would call an API to log the user out
-    router.push("/")
+    signOut({ callbackUrl: '/' }) // Use signOut from next-auth
   }
 
   const formatTimestamp = (timestamp: string) => {
@@ -113,6 +114,12 @@ export default function DashboardHeader() {
         return <Bell className="h-4 w-4" />
     }
   }
+
+  // Determine user details for display
+  const userName = session?.user?.name || "User"
+  const userEmail = session?.user?.email || ""
+  const userImage = session?.user?.image || "/placeholder.svg?height=32&width=32"
+  const userFallback = userName?.charAt(0).toUpperCase() || "U"
 
   return (
     <header className="border-b bg-background sticky top-0 z-10">
@@ -246,47 +253,54 @@ export default function DashboardHeader() {
             </PopoverContent>
           </Popover>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src="/placeholder.svg?height=32&width=32" alt="@user" />
-                  <AvatarFallback>U</AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end" forceMount>
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">John Doe</p>
-                  <p className="text-xs leading-none text-muted-foreground">john.doe@example.com</p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push("/settings")}>
-                <User className="mr-2 h-4 w-4" />
-                <span>Profile</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/settings")}>
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Settings</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/notifications")}>
-                <Bell className="mr-2 h-4 w-4" />
-                <span>Notifications</span>
-                {unreadCount > 0 && (
-                  <Badge className="ml-auto" variant="outline">
-                    {unreadCount}
-                  </Badge>
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout}>
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Log out</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {status === "authenticated" && session?.user && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={userImage} alt={userName} />
+                    <AvatarFallback>{userFallback}</AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">{userName}</p>
+                    {userEmail && (
+                      <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
+                    )}
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => router.push("/settings")}>
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Profile</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push("/settings")}>
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push("/notifications")}>
+                  <Bell className="mr-2 h-4 w-4" />
+                  <span>Notifications</span>
+                  {unreadCount > 0 && (
+                    <Badge className="ml-auto" variant="outline">
+                      {unreadCount}
+                    </Badge>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Log out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          {status === "unauthenticated" && (
+             <Button onClick={() => router.push('/login')}>Log In</Button>
+          )}
         </div>
       </div>
     </header>

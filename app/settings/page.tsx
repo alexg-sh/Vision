@@ -1,8 +1,8 @@
 "use client"
 
 import { Badge } from "@/components/ui/badge"
-
-import { useState } from "react"
+import { useSession } from "next-auth/react"
+import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -39,25 +39,42 @@ import {
   Linkedin,
 } from "lucide-react"
 import DashboardHeader from "@/components/dashboard-header"
+import { formatDistanceToNow } from 'date-fns'; // Import date-fns function
+
+interface UserSession {
+  id: string;
+  sessionToken: string;
+  userId: string;
+  expires: string; // ISO date string
+  isCurrent: boolean;
+  deviceInfo: string; // Placeholder
+  lastActive: string; // ISO date string
+}
 
 export default function AccountSettingsPage() {
+  const { data: session, status } = useSession()
   const router = useRouter()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
+  const [passwordError, setPasswordError] = useState(""); // Add state for password errors
+  const [avatarError, setAvatarError] = useState(""); // Add state for avatar errors
+  const fileInputRef = useRef<HTMLInputElement>(null); // Ref for file input
+  const [sessions, setSessions] = useState<UserSession[]>([]);
+  const [sessionError, setSessionError] = useState("");
 
   // User profile state
   const [profile, setProfile] = useState({
-    username: "johndoe",
-    displayName: "John Doe",
-    email: "john.doe@example.com",
-    bio: "Product manager and UX enthusiast. I love building tools that help teams collaborate better.",
-    avatar: "/placeholder.svg?height=128&width=128",
-    website: "https://johndoe.com",
-    twitter: "johndoe",
-    linkedin: "johndoe",
-    github: "johndoe",
+    username: "",
+    displayName: "",
+    email: "",
+    bio: "",
+    avatar: "",
+    website: "",
+    twitter: "",
+    linkedin: "",
+    github: "",
   })
 
   // Password change state
@@ -85,37 +102,257 @@ export default function AccountSettingsPage() {
     twitter: false,
   })
 
-  const handleProfileUpdate = () => {
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.id) {
+      setIsLoading(true)
+      // Fetch user data from an API endpoint
+      fetch(`/api/user/profile?userId=${session.user.id}`)
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to fetch profile')
+          return res.json()
+        })
+        .then(data => {
+          setProfile({
+            username: data.username || "",
+            displayName: data.name || "",
+            email: data.email || "",
+            bio: data.bio || "",
+            avatar: data.image || "/placeholder.svg?height=128&width=128",
+            website: data.website || "",
+            twitter: data.twitter || "",
+            linkedin: data.linkedin || "",
+            github: data.github || "",
+          })
+          // TODO: Fetch and set notificationSettings and connectedAccounts similarly
+        })
+        .catch(error => {
+          console.error("Error fetching user data:", error)
+          // Handle error display
+        })
+        .finally(() => setIsLoading(false))
+
+      // Fetch user sessions
+      fetchUserSessions();
+
+    } else if (status === "unauthenticated") {
+      router.push("/login") // Redirect if not logged in
+    }
+  }, [session, status, router])
+
+  const fetchUserSessions = async () => {
+    setSessionError("");
+    try {
+      const response = await fetch('/api/user/sessions');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch sessions');
+      }
+      const data: UserSession[] = await response.json();
+      setSessions(data);
+    } catch (error) {
+      console.error("Error fetching sessions:", error);
+      if (error instanceof Error) {
+        setSessionError(error.message);
+      } else {
+        setSessionError("An unknown error occurred while fetching sessions.");
+      }
+    }
+  };
+
+  const handleProfileUpdate = async () => {
+    if (!session?.user?.id) return;
     setIsLoading(true)
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false)
+    try {
+      const response = await fetch(`/api/user/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: session.user.id, ...profile })
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update profile');
+      }
+      const updatedData = await response.json();
       setSuccessMessage("Profile updated successfully")
+      // Optionally update local state again if response differs
+      // setProfile(updatedData); 
       setTimeout(() => setSuccessMessage(""), 3000)
-    }, 1000)
+    } catch (error) {
+      console.error("Error updating profile:", error)
+      // Handle error display
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handlePasswordChange = () => {
+  const handlePasswordChange = async () => {
+    setPasswordError(""); // Clear previous errors
+    setSuccessMessage(""); // Clear previous success messages
+
     // Validate passwords
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      alert("New passwords don't match")
-      return
+      setPasswordError("New passwords don't match");
+      return;
+    }
+    if (passwordData.newPassword.length < 6) {
+        setPasswordError("New password must be at least 6 characters long");
+        return;
+    }
+    if (!passwordData.currentPassword) {
+        setPasswordError("Current password is required");
+        return;
     }
 
-    setIsLoading(true)
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false)
-      setPasswordData({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      })
-      setIsPasswordDialogOpen(false)
-      setSuccessMessage("Password changed successfully")
-      setTimeout(() => setSuccessMessage(""), 3000)
-    }, 1000)
-  }
+
+    setIsLoading(true);
+    try {
+        const response = await fetch('/api/user/password', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                currentPassword: passwordData.currentPassword,
+                newPassword: passwordData.newPassword,
+            }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.message || 'Failed to change password');
+        }
+
+        setPasswordData({
+            currentPassword: "",
+            newPassword: "",
+            confirmPassword: "",
+        });
+        setIsPasswordDialogOpen(false);
+        setSuccessMessage("Password changed successfully");
+        setTimeout(() => setSuccessMessage(""), 3000);
+
+    } catch (error) {
+        console.error("Error changing password:", error);
+        // Display error message to the user
+        if (error instanceof Error) {
+            setPasswordError(error.message);
+        } else {
+            setPasswordError("An unknown error occurred.");
+        }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    setAvatarError("");
+    setSuccessMessage("");
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    // Basic client-side validation (optional, but recommended)
+    if (!file.type.startsWith('image/')) {
+      setAvatarError("Please select an image file.");
+      return;
+    }
+    const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSizeInBytes) {
+      setAvatarError("File size should not exceed 5MB.");
+      return;
+    }
+
+    setIsLoading(true);
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    try {
+      const response = await fetch('/api/user/avatar', {
+        method: 'POST',
+        body: formData,
+        // No 'Content-Type' header needed, browser sets it for FormData
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Failed to upload avatar');
+      }
+
+      // Update profile state with the new avatar URL
+      setProfile({ ...profile, avatar: result.avatarUrl });
+      setSuccessMessage("Avatar updated successfully");
+      setTimeout(() => setSuccessMessage(""), 3000);
+
+    } catch (error) {
+      console.error("Error uploading avatar:", error);
+      if (error instanceof Error) {
+        setAvatarError(error.message);
+      } else {
+        setAvatarError("An unknown error occurred during upload.");
+      }
+    } finally {
+      setIsLoading(false);
+      // Reset file input value so the same file can be selected again if needed
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleSignOutSession = async (sessionId: string) => {
+    setIsLoading(true);
+    setSessionError("");
+    try {
+      const response = await fetch(`/api/user/sessions?sessionId=${sessionId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to sign out session');
+      }
+      // Refresh sessions list
+      await fetchUserSessions();
+      setSuccessMessage("Session signed out successfully");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      console.error("Error signing out session:", error);
+      if (error instanceof Error) {
+        setSessionError(error.message);
+      } else {
+        setSessionError("An unknown error occurred while signing out the session.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignOutAllOtherSessions = async () => {
+    setIsLoading(true);
+    setSessionError("");
+    try {
+      const response = await fetch(`/api/user/sessions?deleteAllOthers=true`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to sign out other sessions');
+      }
+      // Refresh sessions list
+      await fetchUserSessions();
+      setSuccessMessage("Signed out from all other sessions successfully");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      console.error("Error signing out other sessions:", error);
+      if (error instanceof Error) {
+        setSessionError(error.message);
+      } else {
+        setSessionError("An unknown error occurred while signing out other sessions.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleDeleteAccount = () => {
     setIsLoading(true)
@@ -139,6 +376,21 @@ export default function AccountSettingsPage() {
       ...connectedAccounts,
       [account]: false,
     })
+  }
+
+  // Helper function to format session activity time
+  const formatSessionTime = (dateString: string) => {
+    try {
+      return formatDistanceToNow(new Date(dateString), { addSuffix: true });
+    } catch (e) {
+      console.error("Error formatting date:", e);
+      return "Invalid date";
+    }
+  };
+
+  if (status === "loading" || isLoading) {
+    // Optional: Show a loading indicator fullscreen or skeleton loaders
+    return <div>Loading...</div>
   }
 
   return (
@@ -188,15 +440,35 @@ export default function AccountSettingsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  {avatarError && ( // Display avatar error message
+                      <div className="my-2 p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
+                          {avatarError}
+                      </div>
+                  )}
                   <div className="flex flex-col sm:flex-row gap-6">
                     <div className="flex flex-col items-center gap-4">
                       <Avatar className="h-32 w-32">
                         <AvatarImage src={profile.avatar || "/placeholder.svg"} alt={profile.displayName} />
                         <AvatarFallback>{profile.displayName.charAt(0)}</AvatarFallback>
                       </Avatar>
-                      <Button variant="outline" size="sm" className="gap-2">
+                      {/* Hidden file input */}
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleAvatarChange}
+                        accept="image/*" // Accept only image files
+                        style={{ display: 'none' }}
+                      />
+                      {/* Button triggers the hidden file input */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => fileInputRef.current?.click()} // Trigger click on hidden input
+                        disabled={isLoading}
+                      >
                         <Upload className="h-4 w-4" />
-                        Change Avatar
+                        {isLoading ? "Uploading..." : "Change Avatar"}
                       </Button>
                     </div>
                     <div className="flex-1 space-y-4">
@@ -332,6 +604,11 @@ export default function AccountSettingsPage() {
                             Enter your current password and a new password to update your account security.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
+                        {passwordError && ( // Display password error message
+                            <div className="my-2 p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
+                                {passwordError}
+                            </div>
+                        )}
                         <div className="space-y-4 py-4">
                           <div className="space-y-2">
                             <Label htmlFor="current-password">Current Password</Label>
@@ -388,32 +665,54 @@ export default function AccountSettingsPage() {
                     <p className="text-sm text-muted-foreground">
                       Manage your active sessions and sign out from other devices.
                     </p>
+                    {sessionError && ( // Display session error message
+                        <div className="my-2 p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
+                            {sessionError}
+                        </div>
+                    )}
                     <div className="space-y-4 mt-4">
-                      <div className="p-4 border rounded-lg">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <p className="font-medium">Current Session</p>
-                            <p className="text-sm text-muted-foreground">Chrome on Windows • Last active now</p>
+                      {sessions.length > 0 ? (
+                        sessions.map((s) => (
+                          <div key={s.id} className="p-4 border rounded-lg">
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <p className="font-medium">
+                                  {s.deviceInfo} {s.isCurrent && "(Current Session)"}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  Last active {formatSessionTime(s.lastActive)}
+                                </p>
+                              </div>
+                              {s.isCurrent ? (
+                                <Badge>Current</Badge>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleSignOutSession(s.id)}
+                                  disabled={isLoading}
+                                >
+                                  <LogOut className="h-4 w-4 mr-2" />
+                                  Sign Out
+                                </Button>
+                              )}
+                            </div>
                           </div>
-                          <Badge>Current</Badge>
-                        </div>
-                      </div>
-                      <div className="p-4 border rounded-lg">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <p className="font-medium">Mobile App</p>
-                            <p className="text-sm text-muted-foreground">iPhone 13 • Last active 2 hours ago</p>
-                          </div>
-                          <Button variant="outline" size="sm">
-                            <LogOut className="h-4 w-4 mr-2" />
-                            Sign Out
-                          </Button>
-                        </div>
-                      </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">No active sessions found.</p>
+                      )}
                     </div>
-                    <Button variant="outline" className="mt-2">
-                      Sign Out All Other Sessions
-                    </Button>
+                    {sessions.filter(s => !s.isCurrent).length > 0 && (
+                      <Button
+                        variant="outline"
+                        className="mt-2"
+                        onClick={handleSignOutAllOtherSessions}
+                        disabled={isLoading}
+                      >
+                        Sign Out All Other Sessions
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -574,6 +873,7 @@ export default function AccountSettingsPage() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-4">
+                    {/* GitHub Connection Block - Corrected Structure */}
                     <div className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-4">
                         <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded-full">
@@ -604,6 +904,7 @@ export default function AccountSettingsPage() {
                       )}
                     </div>
 
+                    {/* Google Connection Block - Corrected Structure */}
                     <div className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-4">
                         <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded-full">
@@ -634,6 +935,7 @@ export default function AccountSettingsPage() {
                       )}
                     </div>
 
+                    {/* Twitter Connection Block - Corrected Structure */}
                     <div className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-4">
                         <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded-full">
@@ -697,6 +999,7 @@ export default function AccountSettingsPage() {
 
                   <Separator />
 
+                  {/* Delete Account Section - Corrected Structure */}
                   <div className="space-y-2">
                     <h3 className="text-lg font-medium text-destructive">Delete Account</h3>
                     <p className="text-sm text-muted-foreground">
