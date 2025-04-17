@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -38,6 +38,7 @@ import {
 } from "lucide-react"
 import DashboardHeader from "@/components/dashboard-header"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { prisma } from "@/lib/prisma"
 
 export default function BoardSettingsPage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -60,33 +61,22 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
   const [isGithubConnected, setIsGithubConnected] = useState(true)
   const [githubRepo, setGithubRepo] = useState("acme/project-vision")
 
-  // Mock board members with roles
-  const [members, setMembers] = useState([
-    {
-      id: 1,
-      name: "John Doe",
-      email: "john@example.com",
-      role: "admin",
-      avatar: "/placeholder.svg?height=40&width=40",
-      isCurrentUser: true,
-    },
-    {
-      id: 2,
-      name: "Jane Smith",
-      email: "jane@example.com",
-      role: "moderator",
-      avatar: "/placeholder.svg?height=40&width=40",
-      isCurrentUser: false,
-    },
-    {
-      id: 4,
-      name: "Mike Wilson",
-      email: "mike@example.com",
-      role: "member",
-      avatar: "/placeholder.svg?height=40&width=40",
-      isCurrentUser: false,
-    },
-  ])
+  // Fetch board members
+  const [members, setMembers] = useState<any[]>([])
+
+  useEffect(() => {
+    async function fetchMembers() {
+      // Fetch board to get its organizationId
+      const resBoard = await fetch(`/api/board/${params.id}`)
+      const board = await resBoard.json()
+      if (!board.organizationId) return
+      // Fetch organization members
+      const res = await fetch(`/api/organization/${board.organizationId}/members`)
+      const data = await res.json()
+      setMembers(data.members)
+    }
+    fetchMembers()
+  }, [params.id])
 
   // Mock audit logs
   const [auditLogs, setAuditLogs] = useState([

@@ -3,7 +3,8 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { PrismaClient } from "@prisma/client";
 import CredentialsProvider from "next-auth/providers/credentials"; // Import CredentialsProvider
 import bcrypt from "bcrypt"; // Import bcrypt
-import { headers } from 'next/headers'; // Import headers
+import type { RequestInternal } from "next-auth";
+import type { User, Account, Profile } from "next-auth";
 // Import providers as needed, e.g.:
 // import GithubProvider from "next-auth/providers/github";
 // import GoogleProvider from "next-auth/providers/google";
@@ -89,7 +90,8 @@ export const authOptions: AuthOptions = {
     },
   },
   events: {
-    async signIn({ user, account, profile, isNewUser }) {
+    async signIn({ user, account, profile, isNewUser }: { user: User; account: Account | null; profile?: Profile; isNewUser?: boolean }) {
+      const req = account?.providerAccountId ? { headers: { "user-agent": "unknown" } } : null; // Adjust as needed
       // This event fires on successful sign-in.
       // We can attempt to update the session here or shortly after.
       // However, the session might not be fully created *yet* when this runs.
@@ -100,8 +102,7 @@ export const authOptions: AuthOptions = {
       // Let's try updating the *latest* session for the user, assuming it's the one just created.
       // This is a potential race condition if multiple logins happen simultaneously.
 
-      const headersList = await headers();
-      const userAgent = headersList.get('user-agent') || null;
+      const userAgent = req?.headers?.["user-agent"] || null;
 
       if (userAgent && user.id) {
         try {

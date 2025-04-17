@@ -23,6 +23,7 @@ model User {
   sessions      Session[] // Added for NextAuth
   organizations OrganizationMember[]
   posts         Post[]
+  createdBoards Board[]       @relation("CreatedBoards") // Add this line for the inverse relation
   // Add other fields as needed, e.g., passwordHash if using credentials
 }
 
@@ -69,15 +70,16 @@ model VerificationToken {
 }
 
 model Organization {
-  id        String        @id @default(cuid())
-  name      String
-  slug      String        @unique // For URL-friendly identifiers
-  imageUrl  String?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  members   OrganizationMember[]
-  boards    Board[]
-  auditLogs AuditLog[]
+  id          String        @id @default(cuid())
+  name        String
+  slug        String        @unique // For URL-friendly identifiers
+  imageUrl    String?
+  description String?       // Added description field
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  members     OrganizationMember[]
+  boards      Board[]
+  auditLogs   AuditLog[]
 }
 
 // Junction table for many-to-many relationship between User and Organization
@@ -99,13 +101,19 @@ model OrganizationMember {
 model Board {
   id             String       @id @default(cuid())
   name           String
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  description    String?      // Added description field
+  image          String?      // Added image field
+  isPrivate      Boolean      @default(false) // Added isPrivate field
+  organizationId String?      // Make organizationId optional
+  createdById    String       // Foreign key for the creator
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade) // Adjust relation to be optional
+  createdBy      User         @relation("CreatedBoards", fields: [createdById], references: [id], onDelete: Cascade)
   posts          Post[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   @@index([organizationId])
+  @@index([createdById])
 }
 
 model Post {

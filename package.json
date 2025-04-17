@@ -72,6 +72,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/ua-parser-js": "^0.7.39",
+    "ignore-loader": "^0.1.2",
     "mini-css-extract-plugin": "^2.9.2",
     "postcss": "^8",
     "prisma": "^6.6.0",

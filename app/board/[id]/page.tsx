@@ -51,7 +51,42 @@ import {
   PieChart,
 } from "lucide-react"
 import DashboardHeader from "@/components/dashboard-header"
-import { PrismaClient, User, Post, Board, Organization } from '@prisma/client'; // Import specific types
+import { PrismaClient } from '@prisma/client'; // Import PrismaClient only
+
+// Define the Board type manually based on your Prisma schema
+type Board = {
+  id: string;
+  name: string;
+  organizationId: string;
+  // Add other fields from your Prisma Board model as needed
+};
+
+// Define the Post type manually based on your Prisma schema
+type Post = {
+  id: string;
+  title: string;
+  content: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  authorId: string;
+  boardId: string;
+  // Add other fields from your Prisma Post model as needed
+};
+
+// Define the Organization type manually based on your Prisma schema
+type Organization = {
+  id: string;
+  name: string;
+  // Add other fields from your Prisma Organization model as needed
+};
+
+// Define the User type manually based on your Prisma schema
+type User = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  // Add other fields from your Prisma User model as needed
+};
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
