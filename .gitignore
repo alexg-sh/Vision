@@ -1,1 +1,58 @@
-node_modules
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# Dependencies
+/node_modules
+/.pnpm-store/v3
+
+# Build output
+/.next/
+/out/
+/.next
+
+# Static exports
+# /export # Uncomment if using `next export`
+
+# Environment Variables - Ignore all local env files
+.env*.local
+# Ignore specific env files if needed, but keep examples
+# .env.development
+# .env.test
+# .env.production
+# Keep example files
+!.env.example
+# Keep committed production env if desired (less common)
+# !.env.production
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor directories and files
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.sublime-workspace
+.idea # For JetBrains IDEs
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Optional Caches
+.eslintcache
+# .stylelintcache # Add if using stylelint
+# .turbo # Add if using Turborepo
+
+# Output of 'npm pack' / 'pnpm pack'
+*.tgz
+
+# Prisma - Generated client is usually in node_modules, but can be explicit if needed
+# /prisma/generated/
+
+# Test coverage
+/coverage

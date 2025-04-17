@@ -1,3 +1,5 @@
+import MiniCssExtractPlugin from 'mini-css-extract-plugin';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
@@ -9,6 +11,17 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-}
+  webpack: (config, { isServer }) => {
+    // Add the MiniCssExtractPlugin to the client-side webpack config
+    if (!isServer) {
+      config.plugins.push(new MiniCssExtractPlugin({
+        filename: 'static/css/[contenthash].css',
+        chunkFilename: 'static/css/[contenthash].css',
+      }));
+    }
 
-export default nextConfig
+    return config;
+  },
+};
+
+export default nextConfig;
