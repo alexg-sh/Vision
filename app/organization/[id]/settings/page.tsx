@@ -102,6 +102,7 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
   const [members, setMembers] = useState<OrganizationMember[]>([])
   const [activeMembers, setActiveMembers] = useState<OrganizationMember[]>([])
   const [bannedMembers, setBannedMembers] = useState<OrganizationMember[]>([])
+  const [bannedUsers, setBannedUsers] = useState<any[]>([]);
 
   const [isEditing, setIsEditing] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -181,6 +182,22 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
         fetchMembers();
     }
   }, [organizationId, organization, error]); // Re-fetch if org changes or initial error clears
+
+  // Fetch banned users
+  useEffect(() => {
+    const fetchBannedUsers = async () => {
+      if (!organizationId) return;
+      try {
+        const response = await fetch(`/api/organization/${organizationId}/bans`);
+        if (!response.ok) throw new Error('Failed to fetch banned users');
+        const data = await response.json();
+        setBannedUsers(data);
+      } catch (err: any) {
+        toast.error(err.message || 'Error fetching banned users.');
+      }
+    };
+    fetchBannedUsers();
+  }, [organizationId]);
 
   // Derived state for current user
   const currentUserMemberInfo = members.find(m => m.userId === session?.user?.id);
@@ -600,18 +617,20 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                   ) : (
                     <div className="space-y-4">
                       {activeMembers.map((member) => (
-                        <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div key={member.id || member.userId || `${member.user?.email || member.user?.name || Math.random()}`}
+                          className="flex items-center justify-between p-4 border rounded-lg">
                           <div className="flex items-center gap-3">
                             <Avatar className="h-10 w-10">
-                              <AvatarImage src={member.user.image || "/placeholder-user.jpg"} alt={member.user.name || 'User'} />
-                              <AvatarFallback>{member.user.name?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+                              <AvatarImage src={member.user?.image || "/placeholder-user.jpg"} alt={member.user?.name || 'User'} />
+                              <AvatarFallback>{member.user?.name?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
                             </Avatar>
                             <div>
-                              <p className="font-medium flex items-center gap-2">
+                              {/* Change p to div to allow nesting Badge (which renders a div) */}
+                              <div className="font-medium flex items-center gap-2">
                                 {member.user.name || 'Unnamed User'}
                                 {member.userId === session?.user?.id && <Badge variant="secondary">You</Badge>}
-                              </p>
-                              <p className="text-sm text-muted-foreground">{member.user.email}</p>
+                              </div>
+                              <p className="text-sm text-muted-foreground">{member.user?.email || ''}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -679,32 +698,26 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                   <CardDescription>Users who are banned from this organization.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {bannedMembers.length === 0 ? (
+                  {bannedUsers.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <p>No banned users</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {bannedMembers.map((member) => (
-                        <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                      {bannedUsers.map((ban) => (
+                        <div key={ban.id} className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
                           <div className="flex items-center gap-3">
                             <Avatar className="h-10 w-10">
-                              <AvatarImage src={member.user.image || "/placeholder-user.jpg"} alt={member.user.name || 'User'} />
-                              <AvatarFallback>{member.user.name?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+                              <AvatarImage src={ban.user?.image || "/placeholder-user.jpg"} alt={ban.user?.name || 'User'} />
+                              <AvatarFallback>{ban.user?.name?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
                             </Avatar>
                             <div>
-                              <p className="font-medium text-muted-foreground line-through">{member.user.name || 'Unnamed User'}</p>
-                              <p className="text-sm text-muted-foreground">{member.user.email}</p>
-                              {member.bannedAt && <p className="text-xs text-muted-foreground">Banned on: {formatDate(member.bannedAt)}</p>}
-                              {member.banReason && <p className="text-xs text-muted-foreground">Reason: {member.banReason}</p>}
+                              <p className="font-medium text-muted-foreground line-through">{ban.user?.name || 'Unnamed User'}</p>
+                              <p className="text-sm text-muted-foreground">{ban.user?.email || ''}</p>
+                              {ban.bannedAt && <p className="text-xs text-muted-foreground">Banned on: {formatDate(ban.bannedAt)}</p>}
+                              {ban.banReason && <p className="text-xs text-muted-foreground">Reason: {ban.banReason}</p>}
                             </div>
                           </div>
-                          {isAdmin && (
-                            <Button variant="outline" size="sm" onClick={() => handleUnbanUser(member.userId)} disabled={isLoading}>
-                              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                              Unban
-                            </Button>
-                          )}
                         </div>
                       ))}
                     </div>
@@ -787,9 +800,9 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
             </TabsContent>
           </Tabs>
         </div>
-      </main>
+      </main> {/* Ensure main tag is closed correctly */}
 
-      {/* Invite Dialog (Placeholder) */}
+      {/* Invite Dialog */}
       <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
         <DialogContent>
           <DialogHeader>

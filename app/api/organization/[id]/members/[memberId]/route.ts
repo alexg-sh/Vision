@@ -75,7 +75,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string; me
     // --- Handle Ban/Unban ---
     if (status && ['ACTIVE', 'BANNED'].includes(status)) {
       if (status === 'BANNED') {
-        // BANNING: Create Ban Record + Delete Member Record
+        // BANNING: Upsert Ban Record + Delete Member Record
         const targetMember = await prisma.organizationMember.findUnique({
           where: { userId_organizationId: { userId: targetUserId, organizationId: organizationId } },
           select: { role: true },
@@ -93,46 +93,40 @@ export async function PATCH(req: Request, { params }: { params: { id: string; me
 
         try {
           await prisma.$transaction([
-            // 1. Create the ban record
-            prisma.organizationBan.create({
-              data: {
+            // 1. Upsert the ban record
+            prisma.organizationBan.upsert({
+              where: {
+                userId_organizationId: { userId: targetUserId, organizationId: organizationId },
+              },
+              update: {
+                banReason: typeof banReason === 'string' ? banReason : null,
+                bannedBy: requestingUserId,
+                bannedAt: new Date(),
+              },
+              create: {
                 userId: targetUserId,
                 organizationId: organizationId,
                 banReason: typeof banReason === 'string' ? banReason : null,
-                bannedBy: requestingUserId, // Store who initiated the ban
+                bannedBy: requestingUserId,
                 bannedAt: new Date(),
               },
             }),
             // 2. Delete the membership record (kick)
-            prisma.organizationMember.delete({
+            prisma.organizationMember.deleteMany({
               where: {
-                userId_organizationId: { userId: targetUserId, organizationId: organizationId },
+                userId: targetUserId,
+                organizationId: organizationId,
               },
             }),
           ]);
 
-          // TODO: Add audit log for banning
           return NextResponse.json({ message: "User banned and removed successfully." }, { status: 200 });
 
         } catch (error: any) {
-           // Handle potential race condition or if member was already removed
+           // Handle potential error where member was already deleted (P2025)
            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-             // Record to delete not found - maybe already kicked. Check if ban exists.
-             const existingBan = await prisma.organizationBan.findUnique({
-               where: { userId_organizationId: { userId: targetUserId, organizationId: organizationId } }
-             });
-             if (existingBan) {
-               return NextResponse.json({ message: "User was already banned and removed." }, { status: 200 });
-             } else {
-               // If member doesn't exist AND ban doesn't exist, something is wrong or they were just kicked.
-               // Try creating the ban record again outside the transaction.
-               await prisma.organizationBan.upsert({
-                 where: { userId_organizationId: { userId: targetUserId, organizationId: organizationId } },
-                 update: { banReason: typeof banReason === 'string' ? banReason : null, bannedBy: requestingUserId, bannedAt: new Date() },
-                 create: { userId: targetUserId, organizationId: organizationId, banReason: typeof banReason === 'string' ? banReason : null, bannedBy: requestingUserId, bannedAt: new Date() },
-               });
-               return NextResponse.json({ message: "User banned successfully (was likely already removed)." }, { status: 200 });
-             }
+             // Ban should have been upserted
+             return NextResponse.json({ message: "User banned successfully (was already removed)." }, { status: 200 });
            }
            // Re-throw other errors
            throw error;

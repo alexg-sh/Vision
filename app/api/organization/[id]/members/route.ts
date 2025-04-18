@@ -95,7 +95,30 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ message: "Cannot join a private organization directly. Look for an invite." }, { status: 403 });
     }
 
-    // 2. Check if the user is already a member OR is banned
+    // 2. Check if the user is banned in OrganizationBan table
+    const existingBan = await prisma.organizationBan.findUnique({
+      where: {
+        userId_organizationId: {
+          userId: userId,
+          organizationId: organizationId,
+        },
+      },
+      select: { banReason: true, bannedAt: true }
+    });
+
+    if (existingBan) {
+      // User is banned, return detailed ban information
+      return NextResponse.json({
+        message: "You are banned from this organization and cannot join.",
+        banDetails: {
+          reason: existingBan.banReason || "No reason provided.",
+          bannedAt: existingBan.bannedAt?.toISOString() || "N/A",
+          appealInfo: "Please contact the organization staff to appeal this ban."
+        }
+      }, { status: 403 });
+    }
+
+    // 3. Check if the user is already a member OR is banned
     const existingMember = await prisma.organizationMember.findUnique({
       where: {
         userId_organizationId: {
@@ -123,7 +146,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
     }
 
-    // 3. Create the membership record (only if not existing and not banned)
+    // 4. Create the membership record (only if not existing and not banned)
     const newMember = await prisma.organizationMember.create({
       data: {
         userId: userId,
@@ -168,6 +191,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
            }
          }, { status: 403 });
        } else {
+         // If not banned, they must already be a member
          return NextResponse.json({ message: "You are already a member of this organization." }, { status: 409 });
        }
     }
