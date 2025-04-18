@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { notFound } from 'next/navigation';
 import OrganizationClient from './OrganizationClient';
 import DashboardHeader from '@/components/dashboard-header';
+import { OrganizationMember } from '@prisma/client'; // Import OrganizationMember type
 
 // --- Manual type for OrganizationWithDetails ---
 export type OrganizationWithDetails = {
@@ -68,29 +69,29 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
 
   const resolvedParams = await params;
 
-  // Fetch organization details using the defined query
+  // Fetch organization details including members
   let organization = await prisma.organization.findUnique({
     where: { id: resolvedParams.id },
     include: {
-      boards: {
+      boards: { // Initially fetch only public boards for guests
         where: { isPrivate: false },
-        include: {
-          _count: { select: { posts: true } },
-        },
+        include: { _count: { select: { posts: true } } }, // Removed members count here
         orderBy: { createdAt: 'desc' },
       },
-      members: {
+      members: { // Fetch all members to determine role and display
         include: {
           user: { select: { id: true, name: true, email: true, image: true } },
         },
-        orderBy: [{ status: 'asc' }, { role: 'asc' }], // Include status in fetch and ordering
+        orderBy: [{ status: 'asc' }, { role: 'asc' }],
       },
       auditLogs: {
         take: 5,
         orderBy: { createdAt: 'desc' },
-        // Removed `user` relation as it does not exist in the schema
+        include: { // Include user details for audit logs
+           user: { select: { id: true, name: true } }
+        }
       },
-      _count: { select: { members: true, boards: true } },
+      _count: { select: { members: true, boards: true } }, // Count all boards initially
     },
   });
 
@@ -99,28 +100,30 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
   }
 
   let userRole: "admin" | "moderator" | "member" | "guest" = 'guest';
-  if (userId) {
-    const orgMember = await prisma.organizationMember.findUnique({
-      where: {
-        userId_organizationId: {
-          userId: userId,
-          organizationId: organization.id,
-        },
-      },
-      select: { role: true },
-    });
-    userRole = (orgMember?.role?.toLowerCase() as typeof userRole) || 'guest';
+  let currentUserMemberInfo: OrganizationMember | undefined;
 
+  if (userId) {
+    // Find the current user within the fetched members list
+    // Explicitly type 'member' to resolve the implicit 'any' error
+    currentUserMemberInfo = organization.members.find((member: OrganizationMember) => member.userId === userId);
+
+    // Determine role based on found member info and status
+    if (currentUserMemberInfo && currentUserMemberInfo.status === 'ACTIVE') { // Check status is ACTIVE
+        userRole = (currentUserMemberInfo.role?.toLowerCase() as typeof userRole) || 'guest';
+    }
+    // If member exists but status is not ACTIVE (e.g., BANNED), they are treated as 'guest'
+
+    // Check access for private organizations
     if (organization.isPrivate && userRole === 'guest') {
-      notFound();
+        notFound(); // Guests (including banned/inactive) cannot view private orgs
     }
 
+    // If the user is an active member (not guest), fetch ALL boards including private ones
     if (userRole !== 'guest') {
-      // Fetch all boards for members/admins, including private ones
       const allBoards = await prisma.board.findMany({
         where: { organizationId: organization.id },
         include: {
-          _count: { select: { posts: true } }, // Removed `members`
+          _count: { select: { posts: true } }, // Count posts per board
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -130,18 +133,27 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
         boards: allBoards,
         _count: {
           ...organization._count,
-          boards: allBoards.length,
+          boards: allBoards.length, // Update board count based on all boards
         },
       };
     }
   }
+  // If not logged in (no userId), userRole remains 'guest'.
+  // If org is private and user is 'guest', they should be redirected or shown notFound.
+  else if (organization.isPrivate) {
+      notFound(); // Guests cannot view private orgs
+  }
+
+  // Cast the potentially modified organization object to the required type for the client
+  // Ensure the structure matches OrganizationWithDetails after modifications
+  const finalOrganizationData = organization as OrganizationWithDetails;
 
   return (
     <div className="flex min-h-screen flex-col">
       <DashboardHeader />
       <main className="flex-1 container py-6">
         <OrganizationClient
-          organization={organization}
+          organization={finalOrganizationData} // Pass the potentially updated org data
           userRole={userRole}
           userId={userId || null}
         />

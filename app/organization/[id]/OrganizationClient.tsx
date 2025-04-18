@@ -23,7 +23,6 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { toast } from "sonner"; // Import toast from sonner
-import { useToast } from "@/hooks/use-toast"; // Import useToast hook
 import {
   MessageSquare,
   Plus,
@@ -85,7 +84,6 @@ export default function OrganizationClient({ organization, userRole, userId }: O
   const [isBanConfirmOpen, setIsBanConfirmOpen] = useState(false); // State for ban confirm dialog
   const [memberToBan, setMemberToBan] = useState<OrganizationMember | null>(null); // Member to potentially ban
   const [banReason, setBanReason] = useState(""); // Reason for banning
-  const { toast } = useToast(); // Initialize useToast
 
   const isAdmin = userRole === "admin"
   const isModerator = userRole === "moderator" || isAdmin
@@ -147,19 +145,14 @@ export default function OrganizationClient({ organization, userRole, userId }: O
           throw new Error(responseData.message || 'Failed to send invite');
         }
 
-        toast({ // Use toast for success
-            title: "Success",
-            description: responseData.message || `Invitation sent to ${inviteUsername}` // Changed from inviteEmail
-        });
+        toast.success(responseData.message || `Invitation sent to ${inviteUsername}`); // Changed from inviteEmail
         setInviteUsername(""); // Changed from setInviteEmail
         setIsInviteDialogOpen(false);
         // Optionally re-fetch members if needed
         // fetchMembers(); // Assuming a function fetchMembers exists
       } catch (error: any) {
         console.error("Error sending invite:", error);
-        toast({ // Use toast for error
-            variant: "destructive",
-            title: "Error sending invite",
+        toast.error("Error sending invite", {
             description: error.message || "Could not send the invitation."
         });
       } finally {
@@ -206,9 +199,7 @@ export default function OrganizationClient({ organization, userRole, userId }: O
         if (response.status === 403 && (responseData as { banDetails?: { reason: string; bannedAt: string; appealInfo: string } }).banDetails) {
           const { reason, bannedAt, appealInfo } = (responseData as { banDetails: { reason: string; bannedAt: string; appealInfo: string } }).banDetails; // Correctly access banDetails
           const formattedDate = bannedAt !== "N/A" ? new Date(bannedAt).toLocaleDateString() : "N/A";
-          toast({
-            variant: "destructive",
-            title: "Cannot Join: Banned",
+          toast.error("Cannot Join: Banned", {
             description: `Reason: ${reason}\nBanned On: ${formattedDate}\n${appealInfo}`,
             duration: 10000, // Show longer for more info
           });
@@ -220,10 +211,7 @@ export default function OrganizationClient({ organization, userRole, userId }: O
 
       // Successfully joined
       console.log("Successfully joined organization."); // Log success
-      toast({
-        title: "Success",
-        description: `Successfully joined ${organization.name}!`
-      });
+      toast.success(`Successfully joined ${organization.name}!`);
       // Refresh the page or update state to reflect new membership status
       router.refresh(); // Simple way to reload server component data
 
@@ -233,9 +221,7 @@ export default function OrganizationClient({ organization, userRole, userId }: O
       // Avoid showing the specific ban toast again if it was already handled
       if (!(error.message?.includes('Cannot Join: Banned'))) {
          console.log("Showing generic error toast for caught error."); // Log generic toast
-         toast({
-            variant: "destructive",
-            title: "Error",
+         toast.error("Error", {
             description: error.message || "Could not join the organization."
          });
       } else {
@@ -265,17 +251,12 @@ export default function OrganizationClient({ organization, userRole, userId }: O
         throw new Error(responseData.message || `Failed to unban user. Status: ${response.status}`);
       }
 
-      toast({
-        title: "Success",
-        description: responseData.message || "User successfully unbanned."
-      });
+      toast.success(responseData.message || "User successfully unbanned.");
       router.refresh(); // Refresh the page to show the updated member list/status
 
     } catch (error: any) {
       console.error("Error unbanning user:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
+      toast.error("Error", {
         description: error.message || "Could not unban the user."
       });
     } finally {

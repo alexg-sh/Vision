@@ -281,15 +281,15 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
           throw new Error(responseData.message || 'Failed to send invite');
         }
 
-        toast({
-          description: responseData.message || `Invitation sent to ${inviteUsername}`, // Changed from inviteEmail
-        });
+        // Use toast.success for success messages with sonner
+        toast.success(responseData.message || `Invitation sent to ${inviteUsername}`); // Changed from inviteEmail
         setInviteUsername(""); // Changed from setInviteEmail
         setIsInviteDialogOpen(false);
         // Optionally re-fetch members or invites if needed
       } catch (error: any) {
         console.error("Error sending invite:", error);
-        toast.error(error.message || "Could not send the invitation.");
+        // Use toast.error for error messages
+        toast.error(error?.message || "Could not send the invitation.");
       } finally {
         setIsLoading(false);
       }
@@ -408,9 +408,8 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
         throw new Error(responseData.message || 'Failed to unban member');
       }
 
-      toast({
-        description: responseData.message || "User successfully unbanned."
-      });
+      // Use toast.success for success messages with sonner
+      toast.success(responseData.message || "User successfully unbanned.");
 
       // Update local state instead of refreshing
       setBannedUsers(prev => prev.filter(user => user.userId !== targetUserId));
@@ -425,9 +424,8 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
       fetchMembers(); // Assuming fetchMembers updates both active and banned lists
 
     } catch (err: any) {
-      toast({
-        message: error.message || "Could not unban the user."
-      });
+      // Use toast.error for error messages and optional chaining
+      toast.error(err?.message || "Could not unban the user.");
     } finally {
       setIsUnbanning(null); // Clear loading state
     }

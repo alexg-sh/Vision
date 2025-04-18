@@ -35,6 +35,7 @@ import { useRouter } from "next/navigation"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Badge } from "@/components/ui/badge"
 import { useSession, signOut } from "next-auth/react"
+import { useNotifications } from "@/hooks/use-notifications" // Import the hook
 
 // Fix TypeScript errors by defining the type for organizations
 interface Organization {
@@ -47,6 +48,14 @@ export default function DashboardHeader() {
   const router = useRouter()
   const [showNotifications, setShowNotifications] = useState(false)
   const [organizations, setOrganizations] = useState<Organization[]>([])
+  // Use the notifications hook
+  const {
+    notifications,
+    unreadCount,
+    isLoading,
+    markAsRead,
+    markAllAsRead,
+  } = useNotifications()
 
   useEffect(() => {
     async function fetchOrganizations() {
@@ -58,36 +67,6 @@ export default function DashboardHeader() {
     }
     fetchOrganizations()
   }, [status, session])
-
-  // Mock notifications
-  const notifications = [
-    {
-      id: 1,
-      type: "mention",
-      read: false,
-      content: "Jane Smith mentioned you in a comment",
-      timestamp: new Date(Date.now() - 1000 * 60 * 10).toISOString(), // 10 minutes ago
-      link: "/board/1/post/1",
-    },
-    {
-      id: 2,
-      type: "reply",
-      read: false,
-      content: "Mike Johnson replied to your comment",
-      timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 minutes ago
-      link: "/board/1/post/2",
-    },
-    {
-      id: 3,
-      type: "announcement",
-      read: false,
-      content: "New announcement: Upcoming maintenance",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(), // 12 hours ago
-      link: "/board/1/post/3",
-    },
-  ]
-
-  const unreadCount = notifications.filter((n) => !n.read).length
 
   const handleLogout = () => {
     signOut({ callbackUrl: '/' }) // Use signOut from next-auth
@@ -114,20 +93,28 @@ export default function DashboardHeader() {
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case "mention":
+      case "MENTION": // Update cases to match context types
         return <User className="h-4 w-4" />
-      case "reply":
+      case "REPLY": // Update cases to match context types
         return <MessageCircle className="h-4 w-4" />
-      case "vote":
-        return <ThumbsUp className="h-4 w-4" />
-      case "status":
-        return <Clock className="h-4 w-4" />
-      case "announcement":
-        return <Megaphone className="h-4 w-4" />
-      case "poll":
-        return <BarChart3 className="h-4 w-4" />
-      case "invite":
+      // Add other cases from Notification context if needed
+      case "INVITE":
         return <UserPlus className="h-4 w-4" />
+      case "SYSTEM":
+        return <Settings className="h-4 w-4" />
+      case "PROJECT_UPDATE":
+        return <Building2 className="h-4 w-4" />
+      case "TASK_ASSIGNMENT":
+        return <CheckCheck className="h-4 w-4" />
+      // Keep existing cases or remove if not applicable
+      // case "vote":
+      //   return <ThumbsUp className="h-4 w-4" />
+      // case "status":
+      //   return <Clock className="h-4 w-4" />
+      // case "announcement":
+      //   return <Megaphone className="h-4 w-4" />
+      // case "poll":
+      //   return <BarChart3 className="h-4 w-4" />
       default:
         return <Bell className="h-4 w-4" />
     }
@@ -206,11 +193,12 @@ export default function DashboardHeader() {
 
           <Popover open={showNotifications} onOpenChange={setShowNotifications}>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
+              <Button variant="ghost" size="icon" className="relative" disabled={isLoading}> {/* Disable button while loading */}
                 <Bell className="h-5 w-5" />
                 {unreadCount > 0 && (
                   <span className="absolute top-0 right-0 h-4 w-4 rounded-full bg-red-500 flex items-center justify-center text-[10px] text-white font-medium">
-                    {unreadCount}
+                    {/* Display real unread count */}
+                    {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
               </Button>
@@ -227,13 +215,26 @@ export default function DashboardHeader() {
                 </div>
               </div>
               <div className="max-h-[300px] overflow-y-auto">
-                {notifications.length === 0 ? (
+                {isLoading ? (
+                  <div className="p-4 text-center text-muted-foreground">
+                    <p>Loading notifications...</p>
+                  </div>
+                ) : notifications.length === 0 ? (
                   <div className="p-4 text-center text-muted-foreground">
                     <p>No notifications</p>
                   </div>
                 ) : (
                   notifications.map((notification) => (
-                    <Link key={notification.id} href={notification.link} onClick={() => setShowNotifications(false)}>
+                    <Link
+                      key={notification.id}
+                      href={notification.link || "/notifications"} // Use link or fallback
+                      onClick={async () => {
+                        if (!notification.read) {
+                           await markAsRead(notification.id) // Mark as read on click
+                        }
+                        setShowNotifications(false)
+                      }}
+                    >
                       <div
                         className={`p-4 border-b hover:bg-muted/50 cursor-pointer ${
                           !notification.read ? "bg-primary/5" : ""
@@ -265,7 +266,15 @@ export default function DashboardHeader() {
                 )}
               </div>
               <div className="p-3 border-t flex justify-between items-center">
-                <Button variant="ghost" size="sm" className="gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1"
+                  onClick={async () => {
+                    await markAllAsRead() // Call markAllAsRead from hook
+                  }}
+                  disabled={unreadCount === 0 || isLoading} // Disable if no unread or loading
+                >
                   <CheckCheck className="h-4 w-4" />
                   Mark all as read
                 </Button>
@@ -312,7 +321,8 @@ export default function DashboardHeader() {
                   <span>Notifications</span>
                   {unreadCount > 0 && (
                     <Badge className="ml-auto" variant="outline">
-                      {unreadCount}
+                      {/* Display real unread count */}
+                      {unreadCount > 9 ? '9+' : unreadCount}
                     </Badge>
                   )}
                 </DropdownMenuItem>

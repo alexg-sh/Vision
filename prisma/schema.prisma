@@ -11,25 +11,27 @@ datasource db {
 }
 
 model User {
-  id            String        @id @default(cuid())
-  username      String?       @unique // Make username optional
-  name          String?
-  email         String?       @unique
-  emailVerified DateTime?
-  image         String?
-  passwordHash  String?       // Added for Credentials provider
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  accounts      Account[] // Added for NextAuth
-  sessions      Session[] // Added for NextAuth
-  organizations OrganizationMember[]
-  posts         Post[]
-  createdBoards Board[]       @relation("CreatedBoards") // Add this line for the inverse relation
-  bans          OrganizationBan[] // Added inverse relation for bans
-  sentInvites        Invite[] @relation("SentInvites")
-  receivedInvites    Invite[] @relation("ReceivedInvites")
-  notifications      Notification[]
-  inviterNotifications Notification[] @relation("InviterNotifications") // Separate relation name
+  id                   String               @id @default(cuid())
+  username             String?              @unique // Make username optional
+  name                 String?
+  email                String?              @unique
+  emailVerified        DateTime?
+  image                String?
+  passwordHash         String? // Added for Credentials provider
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  accounts             Account[] // Added for NextAuth
+  sessions             Session[] // Added for NextAuth
+  organizations        OrganizationMember[]
+  posts                Post[]
+  createdBoards        Board[]              @relation("CreatedBoards") // Add this line for the inverse relation
+  bans                 OrganizationBan[] // Added inverse relation for bans
+  sentInvites          Invite[]             @relation("SentInvites")
+  receivedInvites      Invite[]             @relation("ReceivedInvites")
+  notifications        Notification[]
+  inviterNotifications Notification[]       @relation("InviterNotifications") // Separate relation name
+  boardMembers         BoardMember[] // Add this relation
+  auditLogs            AuditLog[] // Add this inverse relation for AuditLog
   // Add other fields as needed, e.g., passwordHash if using credentials
 }
 
@@ -61,7 +63,7 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userAgent    String?  // Add this line to store the User-Agent string
+  userAgent    String? // Add this line to store the User-Agent string
 
   @@index([userId])
 }
@@ -76,18 +78,18 @@ model VerificationToken {
 }
 
 model Organization {
-  id          String        @id @default(cuid())
-  name        String
-  slug        String        @unique // For URL-friendly identifiers
-  imageUrl    String?
-  description String?       // Added description field
-  isPrivate   Boolean       @default(false) // Add this line
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  members     OrganizationMember[]
-  boards      Board[]
-  auditLogs   AuditLog[]
-  bans        OrganizationBan[] // Added inverse relation for bans
+  id            String               @id @default(cuid())
+  name          String
+  slug          String               @unique // For URL-friendly identifiers
+  imageUrl      String?
+  description   String? // Added description field
+  isPrivate     Boolean              @default(false) // Add this line
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  members       OrganizationMember[]
+  boards        Board[]
+  auditLogs     AuditLog[]
+  bans          OrganizationBan[] // Added inverse relation for bans
   invites       Invite[]
   notifications Notification[]
 }
@@ -99,8 +101,8 @@ model OrganizationMember {
   organizationId String
   role           String       @default("MEMBER") // e.g., ADMIN, MEMBER
   status         String       @default("ACTIVE") // e.g., ACTIVE, BANNED
-  bannedAt       DateTime?    // Timestamp when the user was banned
-  banReason      String?      // Optional reason for the ban
+  bannedAt       DateTime? // Timestamp when the user was banned
+  banReason      String? // Optional reason for the ban
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
@@ -119,43 +121,61 @@ model OrganizationBan {
   banReason      String?
   bannedBy       String? // Admin who banned
 
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([userId, organizationId])
   @@index([organizationId])
 }
 
 model Board {
-  id             String       @id @default(cuid())
+  id             String         @id @default(cuid())
   name           String
-  description    String?      // Added description field
-  image          String?      // Added image field
-  isPrivate      Boolean      @default(false) // Added isPrivate field
-  organizationId String?      // Make organizationId optional
-  createdById    String       // Foreign key for the creator
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade) // Adjust relation to be optional
-  createdBy      User         @relation("CreatedBoards", fields: [createdById], references: [id], onDelete: Cascade)
+  description    String? // Added description field
+  image          String? // Added image field
+  isPrivate      Boolean        @default(false) // Added isPrivate field
+  organizationId String? // Make organizationId optional
+  createdById    String // Foreign key for the creator
+  organization   Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade) // Adjust relation to be optional
+  createdBy      User           @relation("CreatedBoards", fields: [createdById], references: [id], onDelete: Cascade)
   posts          Post[]
-  invites       Invite[]
-  notifications Notification[]
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  invites        Invite[]
+  notifications  Notification[]
+  members        BoardMember[] // Add this relation
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   @@index([organizationId])
   @@index([createdById])
 }
 
-model Post {
+// Add the BoardMember model here
+model BoardMember {
   id        String   @id @default(cuid())
-  title     String
-  content   String?
+  userId    String
   boardId   String
-  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  role      String   @default("MEMBER") // e.g., ADMIN, MEMBER, VIEWER
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, boardId])
+  @@index([userId])
+  @@index([boardId])
+}
+
+model Post {
+  id            String         @id @default(cuid())
+  title         String
+  content       String?
+  boardId       String
+  board         Board          @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  authorId      String
+  author        User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   notifications Notification[]
 
   @@index([boardId])
@@ -167,11 +187,12 @@ model AuditLog {
   id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  userId         String?      // User who performed the action (optional)
-  action         String       // e.g., "CREATE_BOARD", "UPDATE_POST"
-  entityType     String       // e.g., "BOARD", "POST"
-  entityId       String?      // ID of the entity affected
-  details        Json?        // Additional details about the action
+  userId         String? // User who performed the action (optional)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull) // Add this relation
+  action         String // e.g., "CREATE_BOARD", "UPDATE_POST"
+  entityType     String // e.g., "BOARD", "POST"
+  entityId       String? // ID of the entity affected
+  details        Json? // Additional details about the action
   createdAt      DateTime     @default(now())
 
   @@index([organizationId])
@@ -179,15 +200,15 @@ model AuditLog {
 }
 
 model Notification {
-  id        String   @id @default(cuid())
+  id        String           @id @default(cuid())
   userId    String // The ID of the user receiving the notification
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   type      NotificationType
   content   String
   link      String? // Link to the relevant page (post, board, org, etc.)
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt // Remove @default()
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt // Remove @default()
 
   // Optional fields for specific notification types
   inviterId String? // ID of the user who sent the invite/mention etc.
@@ -197,7 +218,7 @@ model Notification {
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   boardId String?
-  board   Board? @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  board   Board?  @relation(fields: [boardId], references: [id], onDelete: Cascade)
 
   postId String?
   post   Post?   @relation(fields: [postId], references: [id], onDelete: Cascade)
@@ -221,11 +242,11 @@ enum NotificationType {
 }
 
 model Invite {
-  id              String   @id @default(cuid())
-  invitedUsername String?  // Make optional
+  id              String       @id @default(cuid())
+  invitedUsername String? // Make optional
   status          InviteStatus @default(PENDING)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   invitedById String // ID of the user who sent the invite
   invitedBy   User   @relation("SentInvites", fields: [invitedById], references: [id], onDelete: Cascade)
@@ -235,7 +256,7 @@ model Invite {
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   boardId String?
-  board   Board? @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  board   Board?  @relation(fields: [boardId], references: [id], onDelete: Cascade)
 
   // Optional: Link to the user account once they accept/exist
   invitedUserId String?

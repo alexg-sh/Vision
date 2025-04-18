@@ -7,6 +7,7 @@ import AuthProvider from "@/components/auth/session-provider" // Import AuthProv
 import { getServerSession } from "next-auth/next" // Import getServerSession
 import { authOptions } from "@/app/api/auth/[...nextauth]/route" // Import authOptions
 import { Toaster } from "@/components/ui/sonner" // Import the Toaster
+import { NotificationProvider } from "@/context/notification-context"; // Import NotificationProvider
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -30,10 +31,12 @@ export default async function RootLayout({
       <body className={inter.className}>
         {/* Wrap ThemeProvider and children with AuthProvider */}
         <AuthProvider session={session}>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-            {children}
-            <Toaster /> {/* Add the Toaster component here */}
-          </ThemeProvider>
+          <NotificationProvider> {/* Add NotificationProvider */}
+            <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+              {children}
+              <Toaster /> {/* Add the Toaster component here */}
+            </ThemeProvider>
+          </NotificationProvider> {/* Close NotificationProvider */}
         </AuthProvider>
       </body>
     </html>
