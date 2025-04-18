@@ -90,12 +90,13 @@ export default function DashboardClient({
     }
   }
 
+  // Update the `handleCreateOrganization` function to handle non-JSON responses
   const handleCreateOrganization = async () => {
     if (newOrgName.trim()) {
-      setIsLoading(true)
-      setError(null)
+      setIsLoading(true);
+      setError(null);
       try {
-        const response = await fetch(`/api/organizations`, { // API endpoint for creating an organization
+        const response = await fetch(`/api/organizations`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -106,24 +107,29 @@ export default function DashboardClient({
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to create organization');
+          const contentType = response.headers.get('Content-Type');
+          if (contentType && contentType.includes('application/json')) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to create organization');
+          } else {
+            throw new Error('Unexpected server response');
+          }
         }
 
         // Reset form and close dialog
-        setNewOrgName("")
-        setNewOrgDescription("")
-        setIsCreateOrgDialogOpen(false)
+        setNewOrgName("");
+        setNewOrgDescription("");
+        setIsCreateOrgDialogOpen(false);
         router.refresh(); // Refresh server component data
 
       } catch (err: any) {
         console.error("Error creating organization:", err);
         setError(err.message || "An unexpected error occurred.");
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
     }
-  }
+  };
 
   return (
     <>

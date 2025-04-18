@@ -49,11 +49,10 @@ export default async function DashboardPage() {
   const personalBoards: BoardWithCounts[] = await prisma.board.findMany({
     where: {
       createdById: userId, // Revert to using the scalar foreign key field
-      // createdBy: { id: userId }, // Filter through the relation - This caused an error
       organizationId: null,
     },
     include: {
-      _count: { select: { posts: true, members: true } },
+      _count: { select: { posts: true } }, // Removed `members`
     },
     orderBy: { createdAt: 'desc' },
   });

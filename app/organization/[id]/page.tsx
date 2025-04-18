@@ -59,18 +59,20 @@ export type OrganizationWithDetails = {
   };
 };
 
-export default async function OrganizationPage({ params }: { params: { id: string } }) {
+export default async function OrganizationPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
 
+  const resolvedParams = await params;
+
   // Fetch organization details using the defined query
   let organization = await prisma.organization.findUnique({
-    where: { id: params.id },
+    where: { id: resolvedParams.id },
     include: {
       boards: {
         where: { isPrivate: false },
         include: {
-          _count: { select: { posts: true, members: true } },
+          _count: { select: { posts: true } },
         },
         orderBy: { createdAt: 'desc' },
       },
@@ -83,9 +85,7 @@ export default async function OrganizationPage({ params }: { params: { id: strin
       auditLogs: {
         take: 5,
         orderBy: { createdAt: 'desc' },
-        include: {
-          user: { select: { id: true, name: true } },
-        },
+        // Removed `user` relation as it does not exist in the schema
       },
       _count: { select: { members: true, boards: true } },
     },
@@ -117,7 +117,7 @@ export default async function OrganizationPage({ params }: { params: { id: strin
       const allBoards = await prisma.board.findMany({
         where: { organizationId: organization.id },
         include: {
-          _count: { select: { posts: true, members: true } },
+          _count: { select: { posts: true } }, // Removed `members`
         },
         orderBy: { createdAt: 'desc' },
       });

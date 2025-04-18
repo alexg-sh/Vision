@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import {
@@ -36,10 +36,28 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { Badge } from "@/components/ui/badge"
 import { useSession, signOut } from "next-auth/react"
 
+// Fix TypeScript errors by defining the type for organizations
+interface Organization {
+  id: string;
+  name: string;
+}
+
 export default function DashboardHeader() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [showNotifications, setShowNotifications] = useState(false)
+  const [organizations, setOrganizations] = useState<Organization[]>([])
+
+  useEffect(() => {
+    async function fetchOrganizations() {
+      if (status === "authenticated" && session?.user?.id) {
+        const response = await fetch(`/api/user/organizations`)
+        const data: Organization[] = await response.json()
+        setOrganizations(data)
+      }
+    }
+    fetchOrganizations()
+  }, [status, session])
 
   // Mock notifications
   const notifications = [
@@ -146,11 +164,19 @@ export default function DashboardHeader() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Your Organizations</DropdownMenuLabel>
-                <DropdownMenuItem>
-                  <Link href="/organization/1" className="flex items-center gap-2 w-full">
-                    Acme Corp
-                  </Link>
-                </DropdownMenuItem>
+                {organizations.length > 0 ? (
+                  organizations.map((org) => (
+                    <DropdownMenuItem key={org.id}>
+                      <Link href={`/organization/${org.id}`} className="flex items-center gap-2 w-full">
+                        {org.name}
+                      </Link>
+                    </DropdownMenuItem>
+                  ))
+                ) : (
+                  <DropdownMenuItem>
+                    <span className="text-muted-foreground">No organizations found</span>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem>
                   <Link href="/dashboard?tab=organizations" className="flex items-center gap-2 w-full">

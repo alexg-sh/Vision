@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { toast } from "sonner"; // Import toast from sonner
 import {
   MessageSquare,
   Plus,
@@ -35,7 +36,8 @@ import {
   Clock,
   History,
   LogOut,
-  Loader2 // Import Loader2
+  Loader2,
+  LogIn // Add LogIn icon
 } from "lucide-react"
 import { OrganizationWithDetails } from "./page" // Import the type from page.tsx
 import { Prisma } from '@prisma/client'; // Import Prisma for types
@@ -74,6 +76,7 @@ export default function OrganizationClient({ organization, userRole, userId }: O
   const [isPrivate, setIsPrivate] = useState(false)
   const [inviteEmail, setInviteEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isJoinLoading, setIsJoinLoading] = useState(false);
 
   const isAdmin = userRole === "admin"
   const isModerator = userRole === "moderator" || isAdmin
@@ -136,6 +139,35 @@ export default function OrganizationClient({ organization, userRole, userId }: O
       }
     }
   }
+
+  const handleJoinOrganization = async () => {
+    if (!userId || !organization || organization.isPrivate) return; // Should not happen if button logic is correct
+
+    setIsJoinLoading(true);
+    try {
+      const response = await fetch(`/api/organization/${organization.id}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // No body needed, user is identified by session
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to join organization');
+      }
+
+      // Successfully joined
+      toast.success(`Successfully joined ${organization.name}!`);
+      // Refresh the page or update state to reflect new membership status
+      router.refresh(); // Simple way to reload server component data
+
+    } catch (error: any) {
+      console.error("Error joining organization:", error);
+      toast.error(error.message || "Could not join the organization.");
+    } finally {
+      setIsJoinLoading(false);
+    }
+  };
 
   const handleLeaveOrganization = async () => {
     setIsLoading(true);
@@ -305,7 +337,16 @@ export default function OrganizationClient({ organization, userRole, userId }: O
             </Button>
           )}
 
-          {!isAdmin && userId && ( // Only show leave button if user is logged in and not admin
+          {/* Show Join button if logged in, not a member (is guest), and org is public */}
+          {userId && userRole === 'guest' && !organization.isPrivate && (
+            <Button onClick={handleJoinOrganization} disabled={isJoinLoading || isLoading}>
+              {isJoinLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
+              Join Organization
+            </Button>
+          )}
+
+          {/* Show Leave button if logged in and IS a member (but not admin) */}
+          {userId && userRole !== 'guest' && !isAdmin && (
             <Dialog open={isLeaveDialogOpen} onOpenChange={setIsLeaveDialogOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive/10" disabled={isLoading}>

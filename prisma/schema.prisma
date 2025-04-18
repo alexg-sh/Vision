@@ -24,6 +24,7 @@ model User {
   organizations OrganizationMember[]
   posts         Post[]
   createdBoards Board[]       @relation("CreatedBoards") // Add this line for the inverse relation
+  bans          OrganizationBan[] // Added inverse relation for bans
   // Add other fields as needed, e.g., passwordHash if using credentials
 }
 
@@ -75,11 +76,13 @@ model Organization {
   slug        String        @unique // For URL-friendly identifiers
   imageUrl    String?
   description String?       // Added description field
+  isPrivate   Boolean       @default(false) // Add this line
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   members     OrganizationMember[]
   boards      Board[]
   auditLogs   AuditLog[]
+  bans        OrganizationBan[] // Added inverse relation for bans
 }
 
 // Junction table for many-to-many relationship between User and Organization
@@ -88,6 +91,9 @@ model OrganizationMember {
   userId         String
   organizationId String
   role           String       @default("MEMBER") // e.g., ADMIN, MEMBER
+  status         String       @default("ACTIVE") // e.g., ACTIVE, BANNED
+  bannedAt       DateTime?    // Timestamp when the user was banned
+  banReason      String?      // Optional reason for the ban
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
@@ -95,6 +101,21 @@ model OrganizationMember {
 
   @@unique([userId, organizationId])
   @@index([userId])
+  @@index([organizationId])
+}
+
+model OrganizationBan {
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String
+  bannedAt       DateTime @default(now())
+  banReason      String?
+  bannedBy       String? // Admin who banned
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
   @@index([organizationId])
 }
 
