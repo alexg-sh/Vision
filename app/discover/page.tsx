@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -8,100 +8,93 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { MessageSquare, User, Globe, Building2, Search, Users } from "lucide-react"
+import { MessageSquare, User, Globe, Building2, Search, Users, Loader2 } from "lucide-react"
 import DashboardHeader from "@/components/dashboard-header"
+
+interface PublicOrganization {
+  id: string
+  name: string
+  slug: string
+  description: string | null
+  imageUrl: string | null
+  createdAt: string
+  _count: {
+    members: number
+    boards: number
+  }
+}
+
+interface PublicBoard {
+  id: string
+  name: string
+  description: string | null
+  createdAt: string
+  organization: {
+    id: string
+    name: string
+    slug: string
+    imageUrl: string | null
+  }
+}
 
 export default function DiscoverPage() {
   const [searchQuery, setSearchQuery] = useState("")
+  const [organizations, setOrganizations] = useState<PublicOrganization[]>([])
+  const [boards, setBoards] = useState<PublicBoard[]>([])
+  const [loadingOrgs, setLoadingOrgs] = useState(true)
+  const [loadingBoards, setLoadingBoards] = useState(true)
 
-  // Mock public organizations
-  const publicOrganizations = [
-    {
-      id: 1,
-      name: "Acme Corp",
-      description: "Company-wide feedback boards",
-      image: "/placeholder.svg?height=200&width=200",
-      members: 15,
-      boards: 3,
-    },
-    {
-      id: 2,
-      name: "Design Community",
-      description: "A community for designers to share feedback and ideas",
-      image: "/placeholder.svg?height=200&width=200",
-      members: 42,
-      boards: 5,
-    },
-    {
-      id: 3,
-      name: "Developer Hub",
-      description: "Open source project feedback and feature requests",
-      image: "/placeholder.svg?height=200&width=200",
-      members: 78,
-      boards: 8,
-    },
-    {
-      id: 4,
-      name: "Product Managers",
-      description: "Discuss product management best practices and tools",
-      image: "/placeholder.svg?height=200&width=200",
-      members: 36,
-      boards: 4,
-    },
-  ]
+  useEffect(() => {
+    async function fetchData() {
+      setLoadingOrgs(true)
+      setLoadingBoards(true)
+      try {
+        const [orgResponse, boardResponse] = await Promise.all([
+          fetch("/api/discover/organizations"),
+          fetch("/api/discover/boards"),
+        ])
 
-  // Mock public boards
-  const publicBoards = [
-    {
-      id: 1,
-      name: "Feature Requests",
-      description: "Collect and prioritize feature ideas from users",
-      image: "/placeholder.svg?height=200&width=400",
-      organization: "Acme Corp",
-      posts: 24,
-      members: 12,
-    },
-    {
-      id: 2,
-      name: "Design Feedback",
-      description: "Feedback on UI/UX designs",
-      image: "/placeholder.svg?height=200&width=400",
-      organization: "Design Community",
-      posts: 18,
-      members: 8,
-    },
-    {
-      id: 3,
-      name: "Bug Reports",
-      description: "Track and manage bug reports from users",
-      image: "/placeholder.svg?height=200&width=400",
-      organization: "Developer Hub",
-      posts: 32,
-      members: 10,
-    },
-    {
-      id: 4,
-      name: "Product Roadmap",
-      description: "Long-term product planning and roadmap",
-      image: "/placeholder.svg?height=200&width=400",
-      organization: "Product Managers",
-      posts: 15,
-      members: 7,
-    },
-  ]
+        if (orgResponse.ok) {
+          const orgData: PublicOrganization[] = await orgResponse.json()
+          setOrganizations(orgData)
+        } else {
+          console.error("Failed to fetch organizations")
+        }
 
-  // Filter organizations and boards based on search query
-  const filteredOrganizations = publicOrganizations.filter(
+        if (boardResponse.ok) {
+          const boardData: PublicBoard[] = await boardResponse.json()
+          setBoards(boardData)
+        } else {
+          console.error("Failed to fetch boards")
+        }
+      } catch (error) {
+        console.error("Error fetching discover data:", error)
+      } finally {
+        setLoadingOrgs(false)
+        setLoadingBoards(false)
+      }
+    }
+    fetchData()
+  }, [])
+
+  const filteredOrganizations = organizations.filter(
     (org) =>
       org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      org.description.toLowerCase().includes(searchQuery.toLowerCase()),
+      (org.description && org.description.toLowerCase().includes(searchQuery.toLowerCase())),
   )
 
-  const filteredBoards = publicBoards.filter(
+  const filteredBoards = boards.filter(
     (board) =>
       board.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      board.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      board.organization.toLowerCase().includes(searchQuery.toLowerCase()),
+      (board.description && board.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      board.organization.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  )
+
+  const renderLoading = () => (
+    <div className="col-span-full flex justify-center items-center py-12">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <span className="ml-2 text-muted-foreground">Loading...</span>
+    </div>
   )
 
   return (
@@ -129,7 +122,9 @@ export default function DiscoverPage() {
 
           <TabsContent value="organizations">
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {filteredOrganizations.length === 0 ? (
+              {loadingOrgs ? (
+                renderLoading()
+              ) : filteredOrganizations.length === 0 ? (
                 <div className="col-span-full text-center py-12">
                   <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <h3 className="text-lg font-medium mb-2">No organizations found</h3>
@@ -138,31 +133,31 @@ export default function DiscoverPage() {
               ) : (
                 filteredOrganizations.map((org) => (
                   <Link key={org.id} href={`/organization/${org.id}`}>
-                    <Card className="h-full hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors">
-                      <CardHeader className="flex flex-row items-center gap-4">
-                        <div className="relative h-16 w-16 rounded-lg overflow-hidden">
-                          <Image src={org.image || "/placeholder.svg"} alt={org.name} fill className="object-cover" />
+                    <Card className="h-full hover:bg-muted/50 transition-colors flex flex-col">
+                      <CardHeader className="flex flex-row items-start gap-4">
+                        <div className="relative h-16 w-16 rounded-lg overflow-hidden flex-shrink-0">
+                          <Image src={org.imageUrl || "/placeholder-logo.svg"} alt={org.name} fill className="object-cover" />
                         </div>
-                        <div>
-                          <CardTitle className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <CardTitle className="flex items-center gap-2 text-lg">
                             {org.name}
-                            <Badge variant="outline" className="gap-1">
+                            <Badge variant="outline" className="gap-1 text-xs font-normal">
                               <Globe className="h-3 w-3" />
                               Public
                             </Badge>
                           </CardTitle>
-                          <CardDescription>{org.description}</CardDescription>
+                          <CardDescription className="mt-1 line-clamp-2">{org.description || "No description provided."}</CardDescription>
                         </div>
                       </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                      <CardContent className="flex-grow">
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <Users className="h-4 w-4" />
-                            <span>{org.members} members</span>
+                            <span>{org._count.members} members</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <MessageSquare className="h-4 w-4" />
-                            <span>{org.boards} boards</span>
+                            <span>{org._count.boards} public boards</span>
                           </div>
                         </div>
                       </CardContent>
@@ -180,7 +175,9 @@ export default function DiscoverPage() {
 
           <TabsContent value="boards">
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {filteredBoards.length === 0 ? (
+              {loadingBoards ? (
+                renderLoading()
+              ) : filteredBoards.length === 0 ? (
                 <div className="col-span-full text-center py-12">
                   <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <h3 className="text-lg font-medium mb-2">No boards found</h3>
@@ -189,38 +186,27 @@ export default function DiscoverPage() {
               ) : (
                 filteredBoards.map((board) => (
                   <Link key={board.id} href={`/board/${board.id}`}>
-                    <Card className="h-full hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors overflow-hidden">
-                      <div className="relative h-40 w-full">
-                        <Image src={board.image || "/placeholder.svg"} alt={board.name} fill className="object-cover" />
-                      </div>
+                    <Card className="h-full hover:bg-muted/50 transition-colors overflow-hidden flex flex-col">
                       <CardHeader>
                         <div className="flex items-center justify-between">
-                          <CardTitle>{board.name}</CardTitle>
-                          <Badge variant="outline" className="gap-1">
+                          <CardTitle className="text-lg">{board.name}</CardTitle>
+                          <Badge variant="outline" className="gap-1 text-xs font-normal">
                             <Globe className="h-3 w-3" />
                             Public
                           </Badge>
                         </div>
-                        <CardDescription>{board.description}</CardDescription>
+                        <CardDescription className="mt-1 line-clamp-2">{board.description || "No description provided."}</CardDescription>
                       </CardHeader>
-                      <CardContent>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                            <div className="flex items-center gap-1">
-                              <MessageSquare className="h-4 w-4" />
-                              <span>{board.posts} posts</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <User className="h-4 w-4" />
-                              <span>{board.members} members</span>
-                            </div>
-                          </div>
-                          <div className="text-sm text-muted-foreground">
+                      <CardContent className="flex-grow">
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="text-muted-foreground flex items-center gap-1">
+                            <Image src={board.organization.imageUrl || "/placeholder-logo.svg"} alt={board.organization.name} width={16} height={16} className="rounded-sm" />
                             <Link
-                              href={`/organization/${publicOrganizations.find((o) => o.name === board.organization)?.id}`}
+                              href={`/organization/${board.organization.slug}`}
                               className="hover:underline"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              {board.organization}
+                              {board.organization.name}
                             </Link>
                           </div>
                         </div>

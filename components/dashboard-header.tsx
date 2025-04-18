@@ -128,67 +128,79 @@ export default function DashboardHeader() {
 
   return (
     <header className="border-b bg-background sticky top-0 z-10">
-      <div className="container flex h-16 items-center justify-between px-4 md:px-6">
-        <div className="flex items-center gap-4">
+      {/* Adjusted padding and gap for better spacing */}
+      <div className="container flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center gap-6"> {/* Increased gap between logo and nav */}
           <Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
             <MessageSquare className="h-6 w-6" />
             <span>Project Vision</span>
           </Link>
-          <nav className="hidden md:flex gap-6">
+          {/* Adjusted gap for nav links */}
+          <nav className="hidden md:flex items-center gap-4">
             <Link
               href="/dashboard"
-              className="text-sm font-medium hover:underline underline-offset-4 flex items-center gap-1"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
             >
               <LayoutDashboard className="h-4 w-4" />
               <span>Dashboard</span>
             </Link>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-1 text-sm font-medium">
+                {/* Use text-muted-foreground for consistency */}
+                <Button variant="ghost" className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                   <Building2 className="h-4 w-4" />
                   Organizations
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="start"> {/* Align dropdown start */}
                 <DropdownMenuLabel>Your Organizations</DropdownMenuLabel>
+                <DropdownMenuSeparator />
                 {organizations.length > 0 ? (
                   organizations.map((org) => (
-                    <DropdownMenuItem key={org.id}>
+                    <DropdownMenuItem key={org.id} asChild> {/* Use asChild for proper Link behavior */}
                       <Link href={`/organization/${org.id}`} className="flex items-center gap-2 w-full">
+                        {/* Add placeholder for org image if available */}
+                        {/* <Avatar className="h-5 w-5"><AvatarImage src={org.imageUrl || undefined} /><AvatarFallback>{org.name[0]}</AvatarFallback></Avatar> */}
                         {org.name}
                       </Link>
                     </DropdownMenuItem>
                   ))
                 ) : (
-                  <DropdownMenuItem>
-                    <span className="text-muted-foreground">No organizations found</span>
+                  <DropdownMenuItem disabled>
+                    <span className="text-xs text-muted-foreground">No organizations found</span>
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <Link href="/dashboard?tab=organizations" className="flex items-center gap-2 w-full">
+                <DropdownMenuItem asChild> {/* Use asChild */}
+                  <Link href="/dashboard?tab=organizations" className="flex items-center gap-2 w-full text-sm">
                     View All Organizations
+                  </Link>
+                </DropdownMenuItem>
+                 <DropdownMenuItem asChild> {/* Use asChild */}
+                  <Link href="/organizations/new" className="flex items-center gap-2 w-full text-sm"> {/* Add Create New Org link */} 
+                    Create New Organization
                   </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Link
               href="/boards"
-              className="text-sm font-medium hover:underline underline-offset-4 flex items-center gap-1"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
             >
               <LayoutGrid className="h-4 w-4" />
               <span>Boards</span>
             </Link>
             <Link
               href="/discover"
-              className="text-sm font-medium hover:underline underline-offset-4 flex items-center gap-1"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
             >
               <Compass className="h-4 w-4" />
               <span>Discover</span>
             </Link>
           </nav>
         </div>
-        <div className="flex items-center gap-2">
+        {/* Adjusted gap for right-side items */}
+        <div className="flex items-center gap-3">
           <ThemeToggle />
 
           <Popover open={showNotifications} onOpenChange={setShowNotifications}>
@@ -335,7 +347,7 @@ export default function DashboardHeader() {
             </DropdownMenu>
           )}
           {status === "unauthenticated" && (
-             <Button onClick={() => router.push('/login')}>Log In</Button>
+             <Button onClick={() => router.push('/login')} size="sm">Log In</Button>
           )}
         </div>
       </div>

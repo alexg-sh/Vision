@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { getMembershipStatus } from "@/lib/permissions"; // Add this import
 
 // Helper function to check if user is an admin of the organization
 async function isOrgAdmin(userId: string, organizationId: string): Promise<boolean> {
@@ -114,9 +115,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const userId = session.user.id;
 
   // Check if the user is an admin of this organization
-  const isAdmin = await isOrgAdmin(userId, organizationId);
-  if (!isAdmin) {
+  const membershipStatus = await getMembershipStatus(userId, organizationId); // Use getMembershipStatus
+  if (!membershipStatus.isAdmin) { // Check isAdmin from the result
     return NextResponse.json({ message: "Forbidden: Only admins can update organization settings." }, { status: 403 });
+  }
+  // Also check if banned
+  if (membershipStatus.isBanned) {
+      return NextResponse.json({ message: "Forbidden: You are banned from this organization." }, { status: 403 });
   }
 
   let body: any = null; // Initialize body to null
@@ -125,15 +130,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     // Validate input (add more validation as needed)
     const updateData: { name?: string; description?: string | null; imageUrl?: string | null; isPrivate?: boolean } = {};
-    if (body.name && typeof body.name === 'string') {
-      updateData.name = body.name;
-      // TODO: Consider updating the slug if the name changes, handle potential conflicts
+
+    if (typeof body.name === 'string' && body.name.trim()) {
+      updateData.name = body.name.trim();
+      // TODO: Consider updating slug if name changes, handle potential conflicts
     }
-    if (body.description !== undefined) {
-      updateData.description = typeof body.description === 'string' ? body.description : null;
+    if (typeof body.description === 'string') {
+      updateData.description = body.description;
     }
-    if (body.imageUrl !== undefined) {
-      updateData.imageUrl = typeof body.imageUrl === 'string' ? body.imageUrl : null;
+    if (typeof body.imageUrl === 'string') {
+      updateData.imageUrl = body.imageUrl;
     }
     if (typeof body.isPrivate === 'boolean') {
       updateData.isPrivate = body.isPrivate;
@@ -143,29 +149,36 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ message: "No valid fields provided for update." }, { status: 400 });
     }
 
-    // Update the organization
+    // Perform the update
     const updatedOrganization = await prisma.organization.update({
       where: { id: organizationId },
       data: updateData,
+      // Include necessary fields for the response
+      include: {
+        _count: { select: { members: true, boards: true } },
+      }
     });
+
+    // Add the user's role back into the response object
+    const responseWithRole = {
+      ...updatedOrganization,
+      userRole: membershipStatus.role // Add role from membershipStatus
+    };
 
     // TODO: Add audit log entry for organization update
 
-    return NextResponse.json(updatedOrganization, { status: 200 });
+    return NextResponse.json(responseWithRole, { status: 200 }); // Return updated org with role
+
   } catch (error: any) {
-    // Log detailed error
-    console.error("Detailed error updating organization:", {
-        organizationId: organizationId,
-        userId: userId,
-        requestBody: body, // Log the body that was attempted to be saved (now guaranteed to be defined)
-        errorMessage: error.message,
-        errorStack: error.stack,
-        errorCode: error.code, // Prisma error code if available
-        errorMeta: error.meta, // Prisma error meta if available
-        error: error // Log the full error object
-    });
-    // Handle potential errors like slug conflict if slug update is implemented
-    // Return generic error to the client
+    console.error("Error updating organization:", error);
+    // Handle potential errors like Prisma errors or JSON parsing errors
+    if (error instanceof SyntaxError) {
+        return NextResponse.json({ message: "Invalid request body." }, { status: 400 });
+    }
+    // Handle potential Prisma unique constraint errors if slug update is added
+    // if (error.code === 'P2002' && error.meta?.target?.includes('slug')) {
+    //    return NextResponse.json({ message: "Organization name (slug) is already taken." }, { status: 409 });
+    // }
     return NextResponse.json({ message: "Failed to update organization." }, { status: 500 });
   }
 }
