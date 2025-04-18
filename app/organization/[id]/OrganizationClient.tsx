@@ -23,6 +23,7 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { toast } from "sonner"; // Import toast from sonner
+import { useToast } from "@/hooks/use-toast"; // Import useToast hook
 import {
   MessageSquare,
   Plus,
@@ -37,10 +38,12 @@ import {
   History,
   LogOut,
   Loader2,
-  LogIn // Add LogIn icon
+  LogIn, // Add LogIn icon
+  Ban,
+  Undo
 } from "lucide-react"
 import { OrganizationWithDetails } from "./page" // Import the type from page.tsx
-import { Prisma } from '@prisma/client'; // Import Prisma for types
+import { Prisma, OrganizationMember } from '@prisma/client'; // Import Prisma for types and OrganizationMember
 
 // Define types for nested relations based on OrganizationWithDetails
 type BoardWithCounts = OrganizationWithDetails['boards'][number];
@@ -74,9 +77,15 @@ export default function OrganizationClient({ organization, userRole, userId }: O
   const [newBoardDescription, setNewBoardDescription] = useState("")
   const [newBoardImage, setNewBoardImage] = useState("/placeholder.svg?height=200&width=400")
   const [isPrivate, setIsPrivate] = useState(false)
-  const [inviteEmail, setInviteEmail] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const [inviteUsername, setInviteUsername] = useState("") // Changed from inviteEmail
+  const [isLoading, setIsLoading] = useState(false) // General loading state
+  const [inviteLoading, setInviteLoading] = useState(false); // Specific loading state for invites
   const [isJoinLoading, setIsJoinLoading] = useState(false);
+  const [isUnbanning, setIsUnbanning] = useState<string | null>(null); // Track which user is being unbanned
+  const [isBanConfirmOpen, setIsBanConfirmOpen] = useState(false); // State for ban confirm dialog
+  const [memberToBan, setMemberToBan] = useState<OrganizationMember | null>(null); // Member to potentially ban
+  const [banReason, setBanReason] = useState(""); // Reason for banning
+  const { toast } = useToast(); // Initialize useToast
 
   const isAdmin = userRole === "admin"
   const isModerator = userRole === "moderator" || isAdmin
@@ -117,25 +126,44 @@ export default function OrganizationClient({ organization, userRole, userId }: O
   }
 
   const handleInviteUser = async () => {
-    if (inviteEmail.trim()) {
-      setIsLoading(true);
+    if (inviteUsername.trim()) { // Changed from inviteEmail
+      setInviteLoading(true); // Use separate loading state
       try {
-        const response = await fetch(`/api/organization/${organization.id}/invites`, { // Placeholder API endpoint
+        // Use the new /api/invites endpoint
+        const response = await fetch(`/api/invites`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: inviteEmail }),
+          // Send organizationId along with username
+          body: JSON.stringify({
+            username: inviteUsername, // Changed from email
+            organizationId: organization.id
+          }),
         });
+
+        const responseData = await response.json(); // Parse JSON response
+
         if (!response.ok) {
-          throw new Error('Failed to send invite');
+          // Use message from responseData if available
+          throw new Error(responseData.message || 'Failed to send invite');
         }
-        alert(`Invitation sent to ${inviteEmail}`); // Simple feedback
-        setInviteEmail("");
+
+        toast({ // Use toast for success
+            title: "Success",
+            description: responseData.message || `Invitation sent to ${inviteUsername}` // Changed from inviteEmail
+        });
+        setInviteUsername(""); // Changed from setInviteEmail
         setIsInviteDialogOpen(false);
-      } catch (error) {
+        // Optionally re-fetch members if needed
+        // fetchMembers(); // Assuming a function fetchMembers exists
+      } catch (error: any) {
         console.error("Error sending invite:", error);
-        // TODO: Show error to user
+        toast({ // Use toast for error
+            variant: "destructive",
+            title: "Error sending invite",
+            description: error.message || "Could not send the invitation."
+        });
       } finally {
-        setIsLoading(false);
+        setInviteLoading(false); // Use separate loading state
       }
     }
   }
@@ -144,6 +172,7 @@ export default function OrganizationClient({ organization, userRole, userId }: O
     if (!userId || !organization || organization.isPrivate) return; // Should not happen if button logic is correct
 
     setIsJoinLoading(true);
+    console.log("Attempting to join organization:", organization.id); // Log start
     try {
       const response = await fetch(`/api/organization/${organization.id}/members`, {
         method: 'POST',
@@ -151,21 +180,106 @@ export default function OrganizationClient({ organization, userRole, userId }: O
         // No body needed, user is identified by session
       });
 
+      console.log("Join API Response Status:", response.status); // Log status
+
+      // Try to clone the response to read the body safely
+      const responseClone = response.clone();
+      let responseData = {};
+      try {
+        responseData = await responseClone.json();
+        console.log("Join API Response Body:", responseData); // Log body
+      } catch (jsonError) {
+        console.error("Failed to parse response JSON:", jsonError);
+        // Try reading as text if JSON fails
+        try {
+          const responseText = await responseClone.text();
+          console.log("Join API Response Text:", responseText); // Log text body
+        } catch (textError) {
+          console.error("Failed to read response text:", textError);
+        }
+      }
+
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to join organization');
+        console.log("Response not OK. Status:", response.status); // Log !ok
+        // Check for specific ban error using the already parsed/logged responseData
+        if (response.status === 403 && (responseData as { banDetails?: { reason: string; bannedAt: string; appealInfo: string } }).banDetails) {
+          const { reason, bannedAt, appealInfo } = (responseData as { banDetails: { reason: string; bannedAt: string; appealInfo: string } }).banDetails; // Correctly access banDetails
+          const formattedDate = bannedAt !== "N/A" ? new Date(bannedAt).toLocaleDateString() : "N/A";
+          toast({
+            variant: "destructive",
+            title: "Cannot Join: Banned",
+            description: `Reason: ${reason}\nBanned On: ${formattedDate}\n${appealInfo}`,
+            duration: 10000, // Show longer for more info
+          });
+        } else {
+          throw new Error((responseData as { message?: string }).message || "Failed to join organization."); // Ensure message exists
+        }
+        return; // Don't proceed further if response was not ok
       }
 
       // Successfully joined
-      toast.success(`Successfully joined ${organization.name}!`);
+      console.log("Successfully joined organization."); // Log success
+      toast({
+        title: "Success",
+        description: `Successfully joined ${organization.name}!`
+      });
       // Refresh the page or update state to reflect new membership status
       router.refresh(); // Simple way to reload server component data
 
     } catch (error: any) {
-      console.error("Error joining organization:", error);
-      toast.error(error.message || "Could not join the organization.");
+      // Catch errors from fetch itself or the generic error thrown above
+      console.error("Error in handleJoinOrganization catch block:", error); // Log caught error
+      // Avoid showing the specific ban toast again if it was already handled
+      if (!(error.message?.includes('Cannot Join: Banned'))) {
+         console.log("Showing generic error toast for caught error."); // Log generic toast
+         toast({
+            variant: "destructive",
+            title: "Error",
+            description: error.message || "Could not join the organization."
+         });
+      } else {
+         console.log("Caught error message includes 'Cannot Join: Banned', suppressing generic toast."); // Log suppression
+      }
     } finally {
+      console.log("Finishing join attempt."); // Log finally
       setIsJoinLoading(false);
+    }
+  };
+
+  const handleUnbanUser = async (userIdToUnban: string) => {
+    if (!isAdmin) return; // Extra safety check
+
+    setIsUnbanning(userIdToUnban); // Set loading state for this specific user
+    console.log(`Attempting to unban user: ${userIdToUnban} in org: ${organization.id}`);
+
+    try {
+      const response = await fetch(`/api/organization/${organization.id}/bans/${userIdToUnban}`, {
+        method: 'DELETE',
+      });
+
+      const responseData = await response.json(); // Attempt to parse JSON regardless of status
+      console.log(`Unban API Response Status: ${response.status}`, responseData);
+
+      if (!response.ok) {
+        throw new Error(responseData.message || `Failed to unban user. Status: ${response.status}`);
+      }
+
+      toast({
+        title: "Success",
+        description: responseData.message || "User successfully unbanned."
+      });
+      router.refresh(); // Refresh the page to show the updated member list/status
+
+    } catch (error: any) {
+      console.error("Error unbanning user:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Could not unban the user."
+      });
+    } finally {
+      setIsUnbanning(null); // Clear loading state
     }
   };
 
@@ -224,39 +338,42 @@ export default function OrganizationClient({ organization, userRole, userId }: O
           {isModerator && (
             <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" disabled={isLoading}>
+                {/* Use inviteLoading state */}
+                <Button variant="outline" disabled={inviteLoading}>
                   <UserPlus className="mr-2 h-4 w-4" />
                   Invite Members
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Invite members to this organization</DialogTitle>
+                  <DialogTitle>Invite Members</DialogTitle> {/* Changed title */}
                   <DialogDescription>
-                    Send invitations to people you want to collaborate with in this organization.
+                    Enter the username of the person you want to invite to collaborate in this organization.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="invite-email">Email address</Label>
+                    <Label htmlFor="invite-username">Username</Label> {/* Changed label */}
                     <div className="flex gap-2">
                       <Input
-                        id="invite-email"
-                        placeholder="colleague@example.com"
-                        type="email"
-                        value={inviteEmail}
-                        onChange={(e) => setInviteEmail(e.target.value)}
-                        disabled={isLoading}
+                        id="invite-username" // Changed id
+                        placeholder="username" // Changed placeholder
+                        type="text" // Changed type
+                        value={inviteUsername} // Changed value
+                        onChange={(e) => setInviteUsername(e.target.value)} // Changed handler
+                        disabled={inviteLoading} // Use inviteLoading state
                       />
-                      <Button onClick={handleInviteUser} disabled={isLoading || !inviteEmail.trim()}>
-                        {isLoading ? "Inviting..." : "Invite"}
+                      {/* Use inviteLoading state for button */}
+                      <Button onClick={handleInviteUser} disabled={inviteLoading || !inviteUsername.trim()}>
+                        {inviteLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Send Invite"} {/* Changed button text */}
                       </Button>
                     </div>
                   </div>
+                  {/* Add more invite options if needed, e.g., role selection */}
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsInviteDialogOpen(false)} disabled={isLoading}>
-                    Close
+                  <Button variant="outline" onClick={() => setIsInviteDialogOpen(false)} disabled={inviteLoading}>
+                    Cancel {/* Changed from Close */}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -488,7 +605,8 @@ export default function OrganizationClient({ organization, userRole, userId }: O
                   <CardDescription>Manage members and their roles within the organization.</CardDescription>
                 </div>
                 {isModerator && (
-                  <Button variant="outline" onClick={() => setIsInviteDialogOpen(true)} disabled={isLoading}>
+                  // Use inviteLoading state for button
+                  <Button variant="outline" onClick={() => setIsInviteDialogOpen(true)} disabled={inviteLoading}>
                     <UserPlus className="mr-2 h-4 w-4" />
                     Invite Members
                   </Button>
@@ -507,17 +625,37 @@ export default function OrganizationClient({ organization, userRole, userId }: O
                       <div>
                         <p className="font-medium">{member.user.name || 'Unnamed User'}</p>
                         <p className="text-sm text-gray-500">{member.user.email}</p>
+                        {member.status === 'BANNED' && (
+                          <p className="text-xs text-destructive">Banned: {member.banReason || 'No reason provided'}</p>
+                        )}
                       </div>
                     </div>
-                    <Badge
-                      variant={
-                        member.role === "ADMIN" ? "default" : member.role === "MODERATOR" ? "secondary" : "outline"
-                      }
-                      className="capitalize" // Make roles like ADMIN look nicer
-                    >
-                      {member.role.toLowerCase()}
-                    </Badge>
-                    {/* TODO: Add role change dropdown for admins */}
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant={
+                          member.status === 'BANNED' ? 'destructive' :
+                          member.role === "ADMIN" ? "default" : member.role === "MODERATOR" ? "secondary" : "outline"
+                        }
+                        className="capitalize"
+                      >
+                        {member.status === 'BANNED' ? 'Banned' : member.role.toLowerCase()}
+                      </Badge>
+                      {/* Unban Button - Show only if user is BANNED and current user is ADMIN */}
+                      {isAdmin && member.status === 'BANNED' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleUnbanUser(member.userId)}
+                          disabled={isUnbanning === member.userId} // Disable only the button being clicked
+                        >
+                          {isUnbanning === member.userId ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : null}
+                          Unban
+                        </Button>
+                      )}
+                      {/* TODO: Add role change dropdown for admins (for non-banned users) */}
+                    </div>
                   </div>
                 ))}
               </div>

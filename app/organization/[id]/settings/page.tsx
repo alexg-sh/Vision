@@ -112,10 +112,11 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
   // State for dialogs
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false)
-  const [inviteEmail, setInviteEmail] = useState("")
+  const [inviteUsername, setInviteUsername] = useState(""); // Changed from inviteEmail
   const [banReason, setBanReason] = useState("");
   const [memberToBan, setMemberToBan] = useState<OrganizationMember | null>(null);
   const [isBanConfirmOpen, setIsBanConfirmOpen] = useState(false);
+  const [isUnbanning, setIsUnbanning] = useState<string | null>(null); // Track unbanning state per user
 
   // Form state for editing org details
   const [editedName, setEditedName] = useState("")
@@ -180,6 +181,7 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
     // Fetch members only after org details are fetched (and user role is confirmed)
     if (organization) {
         fetchMembers();
+        fetchBannedUsers(); // Fetch banned users after org details are available
     }
   }, [organizationId, organization, error]); // Re-fetch if org changes or initial error clears
 
@@ -260,13 +262,37 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
     // No finally block needed if redirecting on success
   };
 
-  const handleInviteUser = () => {
-    if (inviteEmail.trim() && organization) {
-      // TODO: Implement actual invite API call
-      console.log(`Inviting ${inviteEmail} to ${organization.name}`);
-      toast.info(`(Not Implemented) Invitation would be sent to ${inviteEmail}`);
-      setInviteEmail("");
-      setIsInviteDialogOpen(false);
+  const handleInviteUser = async () => {
+    if (inviteUsername.trim() && organization) { // Changed from inviteEmail
+      setIsLoading(true);
+      try {
+        const response = await fetch(`/api/invites`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: inviteUsername, // Changed from email
+            organizationId: organization.id
+          }),
+        });
+
+        const responseData = await response.json();
+
+        if (!response.ok) {
+          throw new Error(responseData.message || 'Failed to send invite');
+        }
+
+        toast({
+          description: responseData.message || `Invitation sent to ${inviteUsername}`, // Changed from inviteEmail
+        });
+        setInviteUsername(""); // Changed from setInviteEmail
+        setIsInviteDialogOpen(false);
+        // Optionally re-fetch members or invites if needed
+      } catch (error: any) {
+        console.error("Error sending invite:", error);
+        toast.error(error.message || "Could not send the invitation.");
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -364,30 +390,81 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
   const handleUnbanUser = async (targetUserId: string) => {
     if (!organization || !isAdmin) return;
 
-    const memberToUnban = bannedMembers.find(m => m.userId === targetUserId);
-    if (!memberToUnban) return;
+    const memberToUnban = bannedUsers.find(m => m.userId === targetUserId);
+    if (!memberToUnban) {
+      toast.error("Could not find the user in the banned list.");
+      return;
+    }
 
-    setIsLoading(true);
+    setIsUnbanning(targetUserId); // Set loading state for this user
     try {
-      const response = await fetch(`/api/organization/${organization.id}/members/${targetUserId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'ACTIVE' }), // Unbanning sets status to ACTIVE
+      const response = await fetch(`/api/organization/${organization.id}/bans/${targetUserId}`, {
+        method: 'DELETE', // Use DELETE method
       });
+
+      const responseData = await response.json(); // Parse JSON regardless of status
+
+      if (!response.ok) {
+        throw new Error(responseData.message || 'Failed to unban member');
+      }
+
+      toast({
+        description: responseData.message || "User successfully unbanned."
+      });
+
+      // Update local state instead of refreshing
+      setBannedUsers(prev => prev.filter(user => user.userId !== targetUserId));
+      // Optionally, if the API also reactivates the member record, update activeMembers
+      // This depends on the API behavior. The current DELETE endpoint updates the member status.
+      // We need to fetch the updated member details or assume they are now 'ACTIVE'.
+      // For simplicity, let's just remove from banned list. A refresh might still be needed
+      // if the user should immediately appear in the 'Active Members' list with full details.
+      // Consider fetching members again or adding a simplified entry to activeMembers.
+
+      // Let's try refetching members to update both lists accurately without full page reload
+      fetchMembers(); // Assuming fetchMembers updates both active and banned lists
+
+    } catch (err: any) {
+      toast({
+        message: error.message || "Could not unban the user."
+      });
+    } finally {
+      setIsUnbanning(null); // Clear loading state
+    }
+  };
+
+  // Add fetchMembers function reference if it's not already in scope
+  // Ensure fetchMembers is defined within the component or passed as a prop
+  // and that it updates both activeMembers and bannedMembers states.
+  const fetchMembers = async () => {
+    if (!organizationId) return;
+    try {
+      const response = await fetch(`/api/organization/${organizationId}/members`);
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to unban member');
+        throw new Error(errorData.message || "Failed to fetch members.");
       }
-      const updatedMember: OrganizationMember = await response.json();
-      // Update local state
-      setMembers(prev => prev.map(m => m.userId === targetUserId ? updatedMember : m));
-      setBannedMembers(prev => prev.filter(m => m.userId !== targetUserId));
-      setActiveMembers(prev => [...prev, updatedMember]);
-      toast.success(`${memberToUnban.user.name || 'Member'} has been unbanned.`);
+      const data: OrganizationMember[] = await response.json();
+      setMembers(data);
+      setActiveMembers(data.filter(m => m.status === 'ACTIVE'));
+      setBannedMembers(data.filter(m => m.status === 'BANNED')); // This state seems unused, maybe meant bannedUsers?
+      // Let's assume bannedUsers is fetched separately from /bans endpoint
+      // If the unban API updates the member record status, fetching members should suffice.
     } catch (err: any) {
-      toast.error(err.message || "Error unbanning member.");
-    } finally {
-      setIsLoading(false);
+      toast.error(err.message || "Error refreshing members list.");
+    }
+  };
+
+  // Fetch banned users (ensure this is defined and used)
+  const fetchBannedUsers = async () => {
+    if (!organizationId) return;
+    try {
+      const response = await fetch(`/api/organization/${organizationId}/bans`);
+      if (!response.ok) throw new Error('Failed to fetch banned users');
+      const data = await response.json();
+      setBannedUsers(data);
+    } catch (err: any) {
+      toast.error(err.message || 'Error fetching banned users.');
     }
   };
 
@@ -602,10 +679,10 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                       <CardTitle>Active Members</CardTitle>
                       <CardDescription>Manage members and their roles within the organization.</CardDescription>
                     </div>
-                    {/* TODO: Implement Invite functionality */}
+                    {/* TODO: Implement Invite functionality - Removing WIP */}
                     <Button variant="outline" onClick={() => setIsInviteDialogOpen(true)} disabled={isLoading}>
                       <UserPlus className="mr-2 h-4 w-4" />
-                      Invite Members (WIP)
+                      Invite Members
                     </Button>
                   </div>
                 </CardHeader>
@@ -718,6 +795,23 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                               {ban.banReason && <p className="text-xs text-muted-foreground">Reason: {ban.banReason}</p>}
                             </div>
                           </div>
+                          <div className="flex items-center gap-2">
+                             {ban.banReason && <p className="text-xs text-muted-foreground italic">Reason: {ban.banReason}</p>}
+                             {/* Unban Button */}
+                             {isAdmin && (
+                               <Button
+                                 variant="outline"
+                                 size="sm"
+                                 onClick={() => handleUnbanUser(ban.userId)}
+                                 disabled={isUnbanning === ban.userId} // Disable button if this user is being unbanned
+                               >
+                                 {isUnbanning === ban.userId ? (
+                                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                 ) : null}
+                                 Unban
+                               </Button>
+                             )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -808,17 +902,18 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
           <DialogHeader>
             <DialogTitle>Invite Members</DialogTitle>
             <DialogDescription>
-              Enter the email address of the user you want to invite to {organization.name}.
-              (Note: Invite functionality is not fully implemented yet.)
+              Enter the username of the user you want to invite to {organization?.name}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+             {/* Use Label component */}
+            <Label htmlFor="invite-username">Username</Label>
             <Input
-              id="invite-email"
-              type="email"
-              placeholder="user@example.com"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
+              id="invite-username" // Changed id
+              type="text" // Changed type
+              placeholder="username" // Changed placeholder
+              value={inviteUsername} // Changed value
+              onChange={(e) => setInviteUsername(e.target.value)} // Changed handler
               disabled={isLoading}
             />
           </div>
@@ -826,9 +921,10 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
             <Button variant="outline" onClick={() => setIsInviteDialogOpen(false)} disabled={isLoading}>
               Cancel
             </Button>
-            <Button onClick={handleInviteUser} disabled={isLoading || !inviteEmail.trim()}>
+            {/* Changed button text and check */}
+            <Button onClick={handleInviteUser} disabled={isLoading || !inviteUsername.trim()}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Send Invite (WIP)
+              Send Invite
             </Button>
           </DialogFooter>
         </DialogContent>

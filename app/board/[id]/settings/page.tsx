@@ -35,10 +35,12 @@ import {
   Trash2,
   UserMinus,
   UserPlus,
+  Loader2,
 } from "lucide-react"
 import DashboardHeader from "@/components/dashboard-header"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { prisma } from "@/lib/prisma"
+import { useToast } from "@/hooks/use-toast"
 
 export default function BoardSettingsPage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -47,7 +49,8 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false)
-  const [inviteEmail, setInviteEmail] = useState("")
+  const [inviteUsername, setInviteUsername] = useState("")
+  const [isInviteLoading, setIsInviteLoading] = useState(false)
   const [boardName, setBoardName] = useState("Feature Requests")
   const [boardDescription, setBoardDescription] = useState("Collect and prioritize feature ideas from users")
   const [boardImage, setBoardImage] = useState("/placeholder.svg?height=400&width=1200")
@@ -64,17 +67,18 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
   // Fetch board members
   const [members, setMembers] = useState<any[]>([])
 
+  async function fetchMembers() {
+    // Fetch board to get its organizationId
+    const resBoard = await fetch(`/api/board/${params.id}`)
+    const board = await resBoard.json()
+    if (!board.organizationId) return
+    // Fetch organization members
+    const res = await fetch(`/api/organization/${board.organizationId}/members`)
+    const data = await res.json()
+    setMembers(data.members)
+  }
+
   useEffect(() => {
-    async function fetchMembers() {
-      // Fetch board to get its organizationId
-      const resBoard = await fetch(`/api/board/${params.id}`)
-      const board = await resBoard.json()
-      if (!board.organizationId) return
-      // Fetch organization members
-      const res = await fetch(`/api/organization/${board.organizationId}/members`)
-      const data = await res.json()
-      setMembers(data.members)
-    }
     fetchMembers()
   }, [params.id])
 
@@ -150,20 +154,45 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
     router.push("/dashboard")
   }
 
-  const handleInviteUser = () => {
-    if (inviteEmail.trim()) {
-      // In a real app, this would send an invitation to the user
-      // Add to audit log
-      const newLog = {
-        id: auditLogs.length + 1,
-        action: "invited user",
-        user: "John Doe",
-        timestamp: new Date().toISOString(),
-        details: `Invited '${inviteEmail}' to the board`,
+  const { toast } = useToast()
+
+  const handleInviteUser = async () => {
+    if (inviteUsername.trim()) {
+      setIsInviteLoading(true)
+      try {
+        const response = await fetch(`/api/invites`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: inviteUsername,
+            boardId: params.id,
+          }),
+        })
+
+        const responseData = await response.json()
+
+        if (!response.ok) {
+          throw new Error(responseData.message || "Failed to send invite")
+        }
+
+        toast({
+          title: "Success",
+          description: responseData.message || `Invitation sent to ${inviteUsername}`,
+        })
+        setInviteUsername("")
+        setIsInviteDialogOpen(false)
+        // Re-fetch members after successful invite
+        fetchMembers()
+      } catch (error: any) {
+        console.error("Error sending invite:", error)
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: error.message || "Could not send the invitation.",
+        })
+      } finally {
+        setIsInviteLoading(false)
       }
-      setAuditLogs([newLog, ...auditLogs])
-      setInviteEmail("")
-      setIsInviteDialogOpen(false)
     }
   }
 
@@ -380,7 +409,7 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
                   </div>
                   <AlertDialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
                     <AlertDialogTrigger asChild>
-                      <Button>
+                      <Button disabled={isInviteLoading}>
                         <UserPlus className="mr-2 h-4 w-4" />
                         Invite User
                       </Button>
@@ -389,25 +418,26 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
                       <AlertDialogHeader>
                         <AlertDialogTitle>Invite a new member</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Enter the email address of the person you want to invite to this board.
+                          Enter the username of the person you want to invite to this board.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <div className="py-4">
-                        <Label htmlFor="invite-email" className="mb-2 block">
-                          Email address
+                        <Label htmlFor="invite-username" className="mb-2 block">
+                          Username
                         </Label>
                         <Input
-                          id="invite-email"
-                          placeholder="colleague@example.com"
-                          type="email"
-                          value={inviteEmail}
-                          onChange={(e) => setInviteEmail(e.target.value)}
+                          id="invite-username"
+                          placeholder="username"
+                          type="text"
+                          value={inviteUsername}
+                          onChange={(e) => setInviteUsername(e.target.value)}
+                          disabled={isInviteLoading}
                         />
                       </div>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleInviteUser}>
-                          <Mail className="mr-2 h-4 w-4" />
+                        <AlertDialogCancel disabled={isInviteLoading}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleInviteUser} disabled={isInviteLoading || !inviteUsername.trim()}>
+                          {isInviteLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
                           Send Invitation
                         </AlertDialogAction>
                       </AlertDialogFooter>

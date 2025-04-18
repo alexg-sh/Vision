@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import AuthProvider from "@/components/auth/session-provider" // Import AuthProvider
 import { getServerSession } from "next-auth/next" // Import getServerSession
 import { authOptions } from "@/app/api/auth/[...nextauth]/route" // Import authOptions
+import { Toaster } from "@/components/ui/sonner" // Import the Toaster
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -31,6 +32,7 @@ export default async function RootLayout({
         <AuthProvider session={session}>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
             {children}
+            <Toaster /> {/* Add the Toaster component here */}
           </ThemeProvider>
         </AuthProvider>
       </body>

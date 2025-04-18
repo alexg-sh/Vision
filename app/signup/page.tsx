@@ -17,6 +17,7 @@ export default function SignupPage() {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [username, setUsername] = useState("") // Add username state
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null) // Add error state
 
@@ -31,7 +32,8 @@ export default function SignupPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, email, password }),
+        // Include username in the body
+        body: JSON.stringify({ name, email, password, username }),
       })
 
       if (!response.ok) {
@@ -73,6 +75,20 @@ export default function SignupPage() {
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
               <Input id="name" placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} required />
+            </div>
+            {/* Add Username Input Field */}
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                placeholder="johndoe"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                // Optional: Add pattern for validation if desired
+                // pattern="^[a-zA-Z0-9_]{3,20}$"
+                // title="Username must be 3-20 alphanumeric characters or underscores."
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>

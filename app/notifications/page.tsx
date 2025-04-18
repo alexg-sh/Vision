@@ -1,114 +1,183 @@
 "use client"
 
-import { useState } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Bell, MessageSquare, ThumbsUp, User, Settings, CheckCheck, Clock, Megaphone, BarChart3 } from "lucide-react"
-import DashboardHeader from "@/components/dashboard-header"
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react"; // Import useSession
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Bell, MessageSquare, ThumbsUp, User, Settings, CheckCheck, Clock, Megaphone, BarChart3, Check, X, Loader2 } from "lucide-react"; // Added Check, X, Loader2
+import DashboardHeader from "@/components/dashboard-header";
+import { useToast } from "@/hooks/use-toast"; // Import useToast
+
+// Define a type for the notification structure, including invite details
+interface Notification {
+  id: string; // Use string ID from DB
+  type: string;
+  read: boolean;
+  content: string;
+  timestamp: string;
+  user?: { // User who triggered the notification (e.g., inviter)
+    name: string;
+    avatar?: string | null;
+  } | null;
+  link?: string | null;
+  inviteId?: string | null; // Link to the Invite record
+  inviteStatus?: "PENDING" | "ACCEPTED" | "DECLINED" | null; // Status of the related invite
+}
 
 export default function NotificationsPage() {
-  const router = useRouter()
-  const [isMarkingAllRead, setIsMarkingAllRead] = useState(false)
+  const router = useRouter();
+  const { data: session, status: sessionStatus } = useSession(); // Get session
+  const { toast } = useToast(); // Initialize toast
 
-  // Mock notifications data
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      type: "mention",
-      read: false,
-      content: "Jane Smith mentioned you in a comment on 'Add dark mode support'",
-      timestamp: new Date(Date.now() - 1000 * 60 * 10).toISOString(), // 10 minutes ago
-      user: {
-        name: "Jane Smith",
-        avatar: "/placeholder.svg?height=40&width=40",
-      },
-      link: "/board/1/post/1",
-    },
-    {
-      id: 2,
-      type: "reply",
-      read: false,
-      content: "Mike Johnson replied to your comment on 'Improve mobile responsiveness'",
-      timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 minutes ago
-      user: {
-        name: "Mike Johnson",
-        avatar: "/placeholder.svg?height=40&width=40",
-      },
-      link: "/board/1/post/2",
-    },
-    {
-      id: 3,
-      type: "vote",
-      read: true,
-      content: "Your post 'Add export to CSV feature' received 5 new upvotes",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
-      link: "/board/1/post/3",
-    },
-    {
-      id: 4,
-      type: "status",
-      read: true,
-      content: "The status of 'Add dark mode support' changed from 'Planned' to 'In Progress'",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(), // 5 hours ago
-      link: "/board/1/post/1",
-    },
-    {
-      id: 5,
-      type: "announcement",
-      read: false,
-      content: "New announcement: 'Important: Upcoming maintenance'",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(), // 12 hours ago
-      user: {
-        name: "Admin User",
-        avatar: "/placeholder.svg?height=40&width=40",
-      },
-      link: "/board/1/post/3",
-    },
-    {
-      id: 6,
-      type: "poll",
-      read: true,
-      content: "New poll: 'Which feature should we prioritize next?'",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
-      user: {
-        name: "Jane Smith",
-        avatar: "/placeholder.svg?height=40&width=40",
-      },
-      link: "/board/1/post/4",
-    },
-    {
-      id: 7,
-      type: "invite",
-      read: false,
-      content: "You were invited to join the 'Design Team' organization",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 36).toISOString(), // 1.5 days ago
-      user: {
-        name: "Sarah Williams",
-        avatar: "/placeholder.svg?height=40&width=40",
-      },
-      link: "/organization/2",
-    },
-  ])
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isLoading, setIsLoading] = useState(true); // Loading state for initial fetch
+  const [error, setError] = useState<string | null>(null); // Error state for initial fetch
+  const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
+  const [processingInviteId, setProcessingInviteId] = useState<string | null>(null); // Track which invite is being processed
 
-  const handleMarkAllAsRead = () => {
-    setIsMarkingAllRead(true)
-    // Simulate API call
-    setTimeout(() => {
-      setNotifications(notifications.map((notification) => ({ ...notification, read: true })))
-      setIsMarkingAllRead(false)
-    }, 1000)
-  }
+  // Fetch notifications when component mounts and session is loaded
+  useEffect(() => {
+    if (sessionStatus === "authenticated") {
+      const fetchNotifications = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+          // Assume an API endpoint /api/notifications exists
+          const response = await fetch("/api/notifications");
+          if (!response.ok) {
+            throw new Error("Failed to fetch notifications");
+          }
+          const data: Notification[] = await response.json();
+          // Sort by timestamp descending (newest first)
+          data.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+          setNotifications(data);
+        } catch (err: any) {
+          setError(err.message || "An unexpected error occurred.");
+          toast({
+            title: "Error",
+            description: "Could not load notifications.",
+            variant: "destructive",
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchNotifications();
+    } else if (sessionStatus === "unauthenticated") {
+      // Redirect to login if not authenticated
+      router.push("/login");
+    }
+    // Run effect when session status changes
+  }, [sessionStatus, router, toast]);
 
-  const handleMarkAsRead = (id: number) => {
-    setNotifications(
-      notifications.map((notification) => (notification.id === id ? { ...notification, read: true } : notification)),
-    )
-  }
+
+  const handleMarkAllAsRead = async () => {
+    setIsMarkingAllRead(true);
+    try {
+      // Assume an API endpoint /api/notifications/mark-all-read exists
+      const response = await fetch("/api/notifications/mark-all-read", { method: "POST" });
+      if (!response.ok) {
+        throw new Error("Failed to mark all as read");
+      }
+      setNotifications(notifications.map((notification) => ({ ...notification, read: true })));
+      toast({
+        title: "Success",
+        description: "All notifications marked as read.",
+      });
+    } catch (err: any) {
+      console.error("Error marking all as read:", err);
+      toast({
+        title: "Error",
+        description: "Could not mark all notifications as read.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsMarkingAllRead(false);
+    }
+  };
+
+  const handleMarkAsRead = async (id: string) => {
+     // Optimistically update UI
+     const originalNotifications = [...notifications];
+     setNotifications(
+       notifications.map((notification) => (notification.id === id ? { ...notification, read: true } : notification)),
+     );
+
+    try {
+      // Assume an API endpoint /api/notifications/[id]/mark-read exists
+      const response = await fetch(`/api/notifications/${id}/mark-read`, { method: "POST" });
+      if (!response.ok) {
+        // Revert optimistic update on failure
+        setNotifications(originalNotifications);
+        throw new Error("Failed to mark as read");
+      }
+      // No need to re-set state if API call succeeds, already done optimistically
+    } catch (err: any) {
+      console.error(`Error marking notification ${id} as read:`, err);
+      // Revert optimistic update on failure
+      setNotifications(originalNotifications);
+      toast({
+        title: "Error",
+        description: "Could not mark notification as read.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handler for accepting or declining an invite
+  const handleInviteResponse = async (inviteId: string, status: "ACCEPTED" | "DECLINED") => {
+    setProcessingInviteId(inviteId); // Set loading state for this specific invite
+    try {
+      const response = await fetch(`/api/invites/${inviteId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || `Failed to ${status.toLowerCase()} invite`);
+      }
+
+      // Update the notification state to reflect the change
+      setNotifications(prevNotifications =>
+        prevNotifications.map(notif => {
+          if (notif.inviteId === inviteId) {
+            return {
+              ...notif,
+              read: true, // Mark as read upon action
+              inviteStatus: status, // Update invite status
+              // Optionally update content based on the action
+              content: `You ${status.toLowerCase()} the invitation.`, // Update content to reflect action
+            };
+          }
+          return notif;
+        })
+      );
+
+      toast({
+        title: "Success",
+        description: result.message || `Invitation ${status.toLowerCase()} successfully.`,
+      });
+
+    } catch (err: any) {
+      console.error(`Error responding to invite ${inviteId}:`, err);
+      toast({
+        title: "Error",
+        description: err.message || "Could not process your response to the invitation.",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingInviteId(null); // Clear loading state
+    }
+  };
+
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp)
@@ -130,7 +199,7 @@ export default function NotificationsPage() {
     } else {
       return date.toLocaleDateString()
     }
-  }
+  };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -146,14 +215,143 @@ export default function NotificationsPage() {
         return <Megaphone className="h-4 w-4" />
       case "poll":
         return <BarChart3 className="h-4 w-4" />
-      case "invite":
+      case "INVITE": // Match the type from the backend
         return <User className="h-4 w-4" />
       default:
         return <Bell className="h-4 w-4" />
     }
+  };
+
+  // Calculate unread count based on fetched data
+  const unreadCount = notifications.filter((notification) => !notification.read).length;
+
+  // Handle loading state for session
+  if (sessionStatus === "loading" || isLoading) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Loading notifications...</p>
+      </div>
+    );
   }
 
-  const unreadCount = notifications.filter((notification) => !notification.read).length
+  // Handle error state for initial fetch
+  if (error) {
+     return (
+       <div className="flex min-h-screen flex-col">
+         <DashboardHeader />
+         <main className="flex-1 container py-6 flex items-center justify-center">
+           <Card className="w-full max-w-md text-center">
+             <CardHeader>
+               <CardTitle>Error Loading Notifications</CardTitle>
+               <CardDescription>We couldn't fetch your notifications. Please try again later.</CardDescription>
+             </CardHeader>
+             <CardContent>
+               <p className="text-destructive">{error}</p>
+               <Button onClick={() => window.location.reload()} className="mt-4">
+                 Retry
+               </Button>
+             </CardContent>
+           </Card>
+         </main>
+       </div>
+     );
+  }
+
+
+  // Render function for individual notification items
+  const renderNotification = (notification: Notification) => {
+    const isInvite = notification.type === "INVITE";
+    const isPendingInvite = isInvite && notification.inviteStatus === "PENDING";
+    const isProcessingThisInvite = processingInviteId === notification.inviteId;
+
+    return (
+      <div
+        key={notification.id}
+        className={`p-4 rounded-lg border ${
+          !notification.read ? "bg-primary/5 border-primary/20" : ""
+        }`}
+      >
+        <div className="flex gap-4">
+          {notification.user ? (
+            <Avatar className="h-10 w-10">
+              <AvatarImage
+                src={notification.user.avatar || "/placeholder.svg"}
+                alt={notification.user.name}
+              />
+              <AvatarFallback>{notification.user.name.charAt(0)}</AvatarFallback>
+            </Avatar>
+          ) : (
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+              {getNotificationIcon(notification.type)}
+            </div>
+          )}
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="capitalize">
+                  {getNotificationIcon(notification.type)}
+                  {/* Display 'Invite' instead of 'INVITE' */}
+                  <span className="ml-1">{notification.type === "INVITE" ? "Invite" : notification.type}</span>
+                </Badge>
+                {!notification.read && <div className="h-2 w-2 rounded-full bg-primary"></div>}
+              </div>
+              <span className="text-sm text-muted-foreground">
+                {formatTimestamp(notification.timestamp)}
+              </span>
+            </div>
+            <p className="mt-1">{notification.content}</p>
+
+            {/* Action buttons area */}
+            <div className="flex justify-between items-center mt-2 space-x-2">
+              {/* View Details Link (always show if link exists, unless it's a processed invite?) */}
+              {notification.link && notification.inviteStatus !== 'ACCEPTED' && notification.inviteStatus !== 'DECLINED' && (
+                 <Link href={notification.link} passHref legacyBehavior>
+                   <Button variant="link" className="p-0 h-auto text-sm">
+                     View Details
+                   </Button>
+                 </Link>
+              )}
+               {/* Spacer if no details link but other buttons exist */}
+               {(!notification.link || notification.inviteStatus === 'ACCEPTED' || notification.inviteStatus === 'DECLINED') && (isPendingInvite || !notification.read) && <div className="flex-1"></div>}
+
+
+              {/* Accept/Decline Buttons for Pending Invites */}
+              {isPendingInvite && notification.inviteId && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleInviteResponse(notification.inviteId!, "DECLINED")}
+                    disabled={isProcessingThisInvite}
+                  >
+                    {isProcessingThisInvite ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <X className="mr-2 h-4 w-4" />}
+                    Decline
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => handleInviteResponse(notification.inviteId!, "ACCEPTED")}
+                    disabled={isProcessingThisInvite}
+                  >
+                    {isProcessingThisInvite ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                    Accept
+                  </Button>
+                </div>
+              )}
+
+              {/* Mark as Read Button (only if not read and not a pending invite) */}
+              {!notification.read && !isPendingInvite && (
+                <Button variant="ghost" size="sm" onClick={() => handleMarkAsRead(notification.id)}>
+                  Mark as read
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -181,10 +379,13 @@ export default function NotificationsPage() {
             <TabsList>
               <TabsTrigger value="all">All</TabsTrigger>
               <TabsTrigger value="unread">Unread</TabsTrigger>
-              <TabsTrigger value="mentions">Mentions</TabsTrigger>
-              <TabsTrigger value="replies">Replies</TabsTrigger>
+              {/* Add other filters if needed */}
+              {/* <TabsTrigger value="mentions">Mentions</TabsTrigger> */}
+              {/* <TabsTrigger value="replies">Replies</TabsTrigger> */}
+               <TabsTrigger value="invites">Invites</TabsTrigger>
             </TabsList>
 
+            {/* All Notifications Tab */}
             <TabsContent value="all">
               <Card>
                 <CardHeader>
@@ -200,63 +401,14 @@ export default function NotificationsPage() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {notifications.map((notification) => (
-                        <div
-                          key={notification.id}
-                          className={`p-4 rounded-lg border ${
-                            !notification.read ? "bg-primary/5 border-primary/20" : ""
-                          }`}
-                        >
-                          <div className="flex gap-4">
-                            {notification.user ? (
-                              <Avatar className="h-10 w-10">
-                                <AvatarImage
-                                  src={notification.user.avatar || "/placeholder.svg"}
-                                  alt={notification.user.name}
-                                />
-                                <AvatarFallback>{notification.user.name.charAt(0)}</AvatarFallback>
-                              </Avatar>
-                            ) : (
-                              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                {getNotificationIcon(notification.type)}
-                              </div>
-                            )}
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className="capitalize">
-                                    {getNotificationIcon(notification.type)}
-                                    <span className="ml-1">{notification.type}</span>
-                                  </Badge>
-                                  {!notification.read && <div className="h-2 w-2 rounded-full bg-primary"></div>}
-                                </div>
-                                <span className="text-sm text-muted-foreground">
-                                  {formatTimestamp(notification.timestamp)}
-                                </span>
-                              </div>
-                              <p className="mt-1">{notification.content}</p>
-                              <div className="flex justify-between items-center mt-2">
-                                <Link href={notification.link}>
-                                  <Button variant="link" className="p-0 h-auto">
-                                    View Details
-                                  </Button>
-                                </Link>
-                                {!notification.read && (
-                                  <Button variant="ghost" size="sm" onClick={() => handleMarkAsRead(notification.id)}>
-                                    Mark as read
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                      {notifications.map(renderNotification)}
                     </div>
                   )}
                 </CardContent>
               </Card>
             </TabsContent>
 
+            {/* Unread Notifications Tab */}
             <TabsContent value="unread">
               <Card>
                 <CardHeader>
@@ -274,194 +426,43 @@ export default function NotificationsPage() {
                     <div className="space-y-4">
                       {notifications
                         .filter((notification) => !notification.read)
-                        .map((notification) => (
-                          <div key={notification.id} className="p-4 rounded-lg border bg-primary/5 border-primary/20">
-                            <div className="flex gap-4">
-                              {notification.user ? (
-                                <Avatar className="h-10 w-10">
-                                  <AvatarImage
-                                    src={notification.user.avatar || "/placeholder.svg"}
-                                    alt={notification.user.name}
-                                  />
-                                  <AvatarFallback>{notification.user.name.charAt(0)}</AvatarFallback>
-                                </Avatar>
-                              ) : (
-                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                  {getNotificationIcon(notification.type)}
-                                </div>
-                              )}
-                              <div className="flex-1">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="capitalize">
-                                      {getNotificationIcon(notification.type)}
-                                      <span className="ml-1">{notification.type}</span>
-                                    </Badge>
-                                    <div className="h-2 w-2 rounded-full bg-primary"></div>
-                                  </div>
-                                  <span className="text-sm text-muted-foreground">
-                                    {formatTimestamp(notification.timestamp)}
-                                  </span>
-                                </div>
-                                <p className="mt-1">{notification.content}</p>
-                                <div className="flex justify-between items-center mt-2">
-                                  <Link href={notification.link}>
-                                    <Button variant="link" className="p-0 h-auto">
-                                      View Details
-                                    </Button>
-                                  </Link>
-                                  <Button variant="ghost" size="sm" onClick={() => handleMarkAsRead(notification.id)}>
-                                    Mark as read
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                        .map(renderNotification)}
                     </div>
                   )}
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="mentions">
+             {/* Invites Tab */}
+            <TabsContent value="invites">
               <Card>
                 <CardHeader>
-                  <CardTitle>Mentions</CardTitle>
-                  <CardDescription>View notifications where you were mentioned.</CardDescription>
+                  <CardTitle>Invitations</CardTitle>
+                  <CardDescription>View your pending and past invitations.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {notifications.filter((n) => n.type === "mention").length === 0 ? (
+                  {notifications.filter(n => n.type === 'INVITE').length === 0 ? (
                     <div className="text-center py-8">
                       <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-medium mb-2">No mentions</h3>
-                      <p className="text-muted-foreground">You haven't been mentioned yet.</p>
+                      <h3 className="text-lg font-medium mb-2">No Invitations</h3>
+                      <p className="text-muted-foreground">You haven't received any invitations yet.</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {notifications
-                        .filter((notification) => notification.type === "mention")
-                        .map((notification) => (
-                          <div
-                            key={notification.id}
-                            className={`p-4 rounded-lg border ${
-                              !notification.read ? "bg-primary/5 border-primary/20" : ""
-                            }`}
-                          >
-                            <div className="flex gap-4">
-                              <Avatar className="h-10 w-10">
-                                <AvatarImage
-                                  src={notification.user?.avatar || "/placeholder.svg"}
-                                  alt={notification.user?.name}
-                                />
-                                <AvatarFallback>{notification.user?.name.charAt(0)}</AvatarFallback>
-                              </Avatar>
-                              <div className="flex-1">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="capitalize">
-                                      <User className="h-4 w-4" />
-                                      <span className="ml-1">mention</span>
-                                    </Badge>
-                                    {!notification.read && <div className="h-2 w-2 rounded-full bg-primary"></div>}
-                                  </div>
-                                  <span className="text-sm text-muted-foreground">
-                                    {formatTimestamp(notification.timestamp)}
-                                  </span>
-                                </div>
-                                <p className="mt-1">{notification.content}</p>
-                                <div className="flex justify-between items-center mt-2">
-                                  <Link href={notification.link}>
-                                    <Button variant="link" className="p-0 h-auto">
-                                      View Details
-                                    </Button>
-                                  </Link>
-                                  {!notification.read && (
-                                    <Button variant="ghost" size="sm" onClick={() => handleMarkAsRead(notification.id)}>
-                                      Mark as read
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                        .filter(notification => notification.type === 'INVITE')
+                        .map(renderNotification)}
                     </div>
                   )}
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="replies">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Replies</CardTitle>
-                  <CardDescription>View notifications for replies to your posts and comments.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {notifications.filter((n) => n.type === "reply").length === 0 ? (
-                    <div className="text-center py-8">
-                      <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-medium mb-2">No replies</h3>
-                      <p className="text-muted-foreground">You haven't received any replies yet.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {notifications
-                        .filter((notification) => notification.type === "reply")
-                        .map((notification) => (
-                          <div
-                            key={notification.id}
-                            className={`p-4 rounded-lg border ${
-                              !notification.read ? "bg-primary/5 border-primary/20" : ""
-                            }`}
-                          >
-                            <div className="flex gap-4">
-                              <Avatar className="h-10 w-10">
-                                <AvatarImage
-                                  src={notification.user?.avatar || "/placeholder.svg"}
-                                  alt={notification.user?.name}
-                                />
-                                <AvatarFallback>{notification.user?.name.charAt(0)}</AvatarFallback>
-                              </Avatar>
-                              <div className="flex-1">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="capitalize">
-                                      <MessageSquare className="h-4 w-4" />
-                                      <span className="ml-1">reply</span>
-                                    </Badge>
-                                    {!notification.read && <div className="h-2 w-2 rounded-full bg-primary"></div>}
-                                  </div>
-                                  <span className="text-sm text-muted-foreground">
-                                    {formatTimestamp(notification.timestamp)}
-                                  </span>
-                                </div>
-                                <p className="mt-1">{notification.content}</p>
-                                <div className="flex justify-between items-center mt-2">
-                                  <Link href={notification.link}>
-                                    <Button variant="link" className="p-0 h-auto">
-                                      View Details
-                                    </Button>
-                                  </Link>
-                                  {!notification.read && (
-                                    <Button variant="ghost" size="sm" onClick={() => handleMarkAsRead(notification.id)}>
-                                      Mark as read
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
+            {/* Add other TabsContent sections if needed */}
+
           </Tabs>
         </div>
       </main>
     </div>
-  )
+  );
 }

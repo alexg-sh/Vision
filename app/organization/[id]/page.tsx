@@ -34,6 +34,9 @@ export type OrganizationWithDetails = {
     userId: string;
     organizationId: string;
     role: string;
+    status: string; // Add status field
+    banReason: string | null; // Add banReason field
+    bannedAt: Date | null; // Add bannedAt field
     user: {
       id: string;
       name: string | null;
@@ -80,7 +83,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
         include: {
           user: { select: { id: true, name: true, email: true, image: true } },
         },
-        orderBy: { role: 'asc' },
+        orderBy: [{ status: 'asc' }, { role: 'asc' }], // Include status in fetch and ordering
       },
       auditLogs: {
         take: 5,
