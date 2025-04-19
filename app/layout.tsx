@@ -33,7 +33,10 @@ export default async function RootLayout({
         <AuthProvider session={session}>
           <NotificationProvider> {/* Add NotificationProvider */}
             <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-              {children}
+              {/* Add container div for consistent margins */}
+              <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+                {children}
+              </div>
               <Toaster /> {/* Add the Toaster component here */}
             </ThemeProvider>
           </NotificationProvider> {/* Close NotificationProvider */}
