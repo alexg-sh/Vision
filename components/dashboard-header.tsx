@@ -1,8 +1,8 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,9 +10,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Bell,
   MessageSquare,
@@ -21,121 +21,122 @@ import {
   Building2,
   LogOut,
   CheckCheck,
-  ThumbsUp,
   MessageCircle,
-  Clock,
   UserPlus,
-  Megaphone,
-  BarChart3,
   LayoutDashboard,
   LayoutGrid,
   Compass,
-} from "lucide-react"
-import { useRouter } from "next/navigation"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { Badge } from "@/components/ui/badge"
-import { useSession, signOut } from "next-auth/react"
-import { useNotifications } from "@/hooks/use-notifications" // Import the hook
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Badge } from "@/components/ui/badge";
+import { useSession, signOut } from "next-auth/react";
+import { useNotifications } from "@/hooks/use-notifications";
 
-// Fix TypeScript errors by defining the type for organizations
 interface Organization {
   id: string;
   name: string;
 }
 
+const DropdownLink = React.forwardRef<
+  HTMLAnchorElement,
+  Omit<React.ComponentProps<typeof Link>, 'href'> &
+  Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> & { href: string; children: React.ReactNode }
+>(({ href, children, ...rest }, ref) => {
+  return (
+    <Link href={href} ref={ref} {...rest}>
+      {children}
+    </Link>
+  );
+});
+DropdownLink.displayName = "DropdownLink";
+
 export default function DashboardHeader() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
-  const [showNotifications, setShowNotifications] = useState(false)
-  const [organizations, setOrganizations] = useState<Organization[]>([])
-  // Use the notifications hook
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const {
     notifications,
     unreadCount,
     isLoading,
     markAsRead,
     markAllAsRead,
-  } = useNotifications()
+  } = useNotifications();
 
   useEffect(() => {
     async function fetchOrganizations() {
       if (status === "authenticated" && session?.user?.id) {
-        const response = await fetch(`/api/user/organizations`)
-        const data: Organization[] = await response.json()
-        setOrganizations(data)
+        try {
+          const response = await fetch(`/api/user/organizations`);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch organizations: ${response.statusText}`);
+          }
+          const data: Organization[] = await response.json();
+          setOrganizations(data);
+        } catch (error) {
+          console.error("Error fetching organizations:", error);
+        }
       }
     }
-    fetchOrganizations()
-  }, [status, session])
+    fetchOrganizations();
+  }, [status, session]);
 
   const handleLogout = () => {
-    signOut({ callbackUrl: '/' }) // Use signOut from next-auth
-  }
+    signOut({ callbackUrl: '/' });
+  };
 
   const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffSec = Math.floor(diffMs / 1000)
-    const diffMin = Math.floor(diffSec / 60)
-    const diffHour = Math.floor(diffMin / 60)
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
 
     if (diffSec < 60) {
-      return "just now"
+      return "just now";
     } else if (diffMin < 60) {
-      return `${diffMin}m ago`
+      return `${diffMin}m ago`;
     } else if (diffHour < 24) {
-      return `${diffHour}h ago`
+      return `${diffHour}h ago`;
     } else {
-      return date.toLocaleDateString()
+      return date.toLocaleDateString();
     }
-  }
+  };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case "MENTION": // Update cases to match context types
-        return <User className="h-4 w-4" />
-      case "REPLY": // Update cases to match context types
-        return <MessageCircle className="h-4 w-4" />
-      // Add other cases from Notification context if needed
+      case "MENTION":
+        return <User className="h-4 w-4" />;
+      case "REPLY":
+        return <MessageCircle className="h-4 w-4" />;
       case "INVITE":
-        return <UserPlus className="h-4 w-4" />
+        return <UserPlus className="h-4 w-4" />;
       case "SYSTEM":
-        return <Settings className="h-4 w-4" />
+        return <Settings className="h-4 w-4" />;
       case "PROJECT_UPDATE":
-        return <Building2 className="h-4 w-4" />
+        return <Building2 className="h-4 w-4" />;
       case "TASK_ASSIGNMENT":
-        return <CheckCheck className="h-4 w-4" />
-      // Keep existing cases or remove if not applicable
-      // case "vote":
-      //   return <ThumbsUp className="h-4 w-4" />
-      // case "status":
-      //   return <Clock className="h-4 w-4" />
-      // case "announcement":
-      //   return <Megaphone className="h-4 w-4" />
-      // case "poll":
-      //   return <BarChart3 className="h-4 w-4" />
+        return <CheckCheck className="h-4 w-4" />;
       default:
-        return <Bell className="h-4 w-4" />
+        return <Bell className="h-4 w-4" />;
     }
-  }
+  };
 
-  // Determine user details for display
-  const userName = session?.user?.name || "User"
-  const userEmail = session?.user?.email || ""
-  const userImage = session?.user?.image || "/placeholder.svg?height=32&width=32"
-  const userFallback = userName?.charAt(0).toUpperCase() || "U"
+  const userName = session?.user?.name || "User";
+  const userEmail = session?.user?.email || "";
+  const userImage = session?.user?.image || "/placeholder-user.jpg";
+  const userFallback = userName?.charAt(0).toUpperCase() || "U";
 
   return (
     <header className="border-b bg-background sticky top-0 z-10">
-      {/* Adjusted padding and gap for better spacing */}
       <div className="container flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-6"> {/* Increased gap between logo and nav */}
+        <div className="flex items-center gap-6">
           <Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
             <MessageSquare className="h-6 w-6" />
             <span>Project Vision</span>
           </Link>
-          {/* Adjusted gap for nav links */}
           <nav className="hidden md:flex items-center gap-4">
             <Link
               href="/dashboard"
@@ -146,23 +147,20 @@ export default function DashboardHeader() {
             </Link>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                {/* Use text-muted-foreground for consistency */}
                 <Button variant="ghost" className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                   <Building2 className="h-4 w-4" />
                   Organizations
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start"> {/* Align dropdown start */}
+              <DropdownMenuContent align="start">
                 <DropdownMenuLabel>Your Organizations</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {organizations.length > 0 ? (
                   organizations.map((org) => (
-                    <DropdownMenuItem key={org.id} asChild> {/* Use asChild for proper Link behavior */}
-                      <Link href={`/organization/${org.id}`} className="flex items-center gap-2 w-full">
-                        {/* Add placeholder for org image if available */}
-                        {/* <Avatar className="h-5 w-5"><AvatarImage src={org.imageUrl || undefined} /><AvatarFallback>{org.name[0]}</AvatarFallback></Avatar> */}
+                    <DropdownMenuItem key={org.id} asChild>
+                      <DropdownLink href={`/organization/${org.id}`} className="flex items-center gap-2 w-full">
                         {org.name}
-                      </Link>
+                      </DropdownLink>
                     </DropdownMenuItem>
                   ))
                 ) : (
@@ -171,15 +169,15 @@ export default function DashboardHeader() {
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild> {/* Use asChild */}
-                  <Link href="/dashboard?tab=organizations" className="flex items-center gap-2 w-full text-sm">
+                <DropdownMenuItem asChild>
+                  <DropdownLink href="/dashboard?tab=organizations" className="flex items-center gap-2 w-full text-sm">
                     View All Organizations
-                  </Link>
+                  </DropdownLink>
                 </DropdownMenuItem>
-                 <DropdownMenuItem asChild> {/* Use asChild */}
-                  <Link href="/organizations/new" className="flex items-center gap-2 w-full text-sm"> {/* Add Create New Org link */} 
+                 <DropdownMenuItem asChild>
+                  <DropdownLink href="/organizations/new" className="flex items-center gap-2 w-full text-sm">
                     Create New Organization
-                  </Link>
+                  </DropdownLink>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -199,17 +197,15 @@ export default function DashboardHeader() {
             </Link>
           </nav>
         </div>
-        {/* Adjusted gap for right-side items */}
         <div className="flex items-center gap-3">
           <ThemeToggle />
 
           <Popover open={showNotifications} onOpenChange={setShowNotifications}>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative" disabled={isLoading}> {/* Disable button while loading */}
+              <Button variant="ghost" size="icon" className="relative" disabled={isLoading}>
                 <Bell className="h-5 w-5" />
                 {unreadCount > 0 && (
                   <span className="absolute top-0 right-0 h-4 w-4 rounded-full bg-red-500 flex items-center justify-center text-[10px] text-white font-medium">
-                    {/* Display real unread count */}
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
@@ -239,12 +235,12 @@ export default function DashboardHeader() {
                   notifications.map((notification) => (
                     <Link
                       key={notification.id}
-                      href={notification.link || "/notifications"} // Use link or fallback
+                      href={notification.link || "/notifications"}
                       onClick={async () => {
                         if (!notification.read) {
-                           await markAsRead(notification.id) // Mark as read on click
+                           await markAsRead(notification.id);
                         }
-                        setShowNotifications(false)
+                        setShowNotifications(false);
                       }}
                     >
                       <div
@@ -283,9 +279,9 @@ export default function DashboardHeader() {
                   size="sm"
                   className="gap-1"
                   onClick={async () => {
-                    await markAllAsRead() // Call markAllAsRead from hook
+                    await markAllAsRead();
                   }}
-                  disabled={unreadCount === 0 || isLoading} // Disable if no unread or loading
+                  disabled={unreadCount === 0 || isLoading}
                 >
                   <CheckCheck className="h-4 w-4" />
                   Mark all as read
@@ -300,7 +296,7 @@ export default function DashboardHeader() {
             </PopoverContent>
           </Popover>
 
-          {status === "authenticated" && session?.user && (
+          {status === "authenticated" && session?.user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-8 w-8 rounded-full">
@@ -333,7 +329,6 @@ export default function DashboardHeader() {
                   <span>Notifications</span>
                   {unreadCount > 0 && (
                     <Badge className="ml-auto" variant="outline">
-                      {/* Display real unread count */}
                       {unreadCount > 9 ? '9+' : unreadCount}
                     </Badge>
                   )}
@@ -345,12 +340,13 @@ export default function DashboardHeader() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          )}
-          {status === "unauthenticated" && (
+          ) : status === "unauthenticated" ? (
              <Button onClick={() => router.push('/login')} size="sm">Log In</Button>
+          ) : (
+            <div className="h-8 w-8 rounded-full bg-muted animate-pulse"></div>
           )}
         </div>
       </div>
     </header>
-  )
+  );
 }
