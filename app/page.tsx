@@ -1,8 +1,13 @@
+"use client" // Add this directive
+
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, MessageSquare, ThumbsUp, Users } from "lucide-react"
+import { ArrowRight, MessageSquare, ThumbsUp, Users, LogIn, UserPlus, LayoutDashboard } from "lucide-react" // Import necessary icons
+import { useSession } from "next-auth/react" // Import useSession
 
 export default function Home() {
+  const { data: session, status } = useSession() // Get session status
+
   return (
     <div className="flex flex-col min-h-screen">
       <header className="border-b">
@@ -19,13 +24,34 @@ export default function Home() {
               Support
             </Link>
           </nav>
-          <div className="flex gap-4">
-            <Link href="/login">
-              <Button variant="outline">Log In</Button>
-            </Link>
-            <Link href="/signup">
-              <Button>Sign Up</Button>
-            </Link>
+          <div className="flex gap-4 items-center">
+            {status === "loading" && (
+              <div className="h-8 w-20 animate-pulse bg-muted rounded-md"></div> // Simple loading placeholder
+            )}
+            {status === "unauthenticated" && (
+              <>
+                <Link href="/login">
+                  <Button variant="outline" className="gap-1">
+                    <LogIn className="h-4 w-4" />
+                    Log In
+                  </Button>
+                </Link>
+                <Link href="/signup">
+                  <Button className="gap-1">
+                    <UserPlus className="h-4 w-4" />
+                    Sign Up
+                  </Button>
+                </Link>
+              </>
+            )}
+            {status === "authenticated" && (
+              <Link href="/dashboard">
+                <Button className="gap-1">
+                  <LayoutDashboard className="h-4 w-4" />
+                  Go to Dashboard
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </header>
