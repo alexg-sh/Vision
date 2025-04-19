@@ -1,8 +1,6 @@
 /*
   Warnings:
 
-  - A unique constraint covering the columns `[invitedUsername,organizationId]` on the table `Invite` will be added. If there are existing duplicate values, this will fail.
-  - A unique constraint covering the columns `[invitedUsername,boardId]` on the table `Invite` will be added. If there are existing duplicate values, this will fail.
   - A unique constraint covering the columns `[username]` on the table `User` will be added. If there are existing duplicate values, this will fail.
 
 */
@@ -26,12 +24,6 @@ CREATE INDEX "BoardMember_boardId_idx" ON "BoardMember"("boardId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "BoardMember_userId_boardId_key" ON "BoardMember"("userId", "boardId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Invite_invitedUsername_organizationId_key" ON "Invite"("invitedUsername", "organizationId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Invite_invitedUsername_boardId_key" ON "Invite"("invitedUsername", "boardId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_username_key" ON "User"("username");

@@ -2,28 +2,46 @@
 const nextConfig = {
   // ... any other existing configurations ...
 
+  images: {
+    unoptimized: true,
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: '**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+    ],
+  },
+
   webpack: (config, { isServer, webpack }) => {
-    // Add a rule to ignore the specific problematic HTML file
-    // This prevents Webpack from trying to parse it.
+    // Add a rule to ignore problematic files in @mapbox/node-pre-gyp
     config.module.rules.push({
       test: /\.html$/,
-      // Regex to match the specific path causing the issue
-      include: /[\\/]node_modules[\\/]@mapbox[\\/]node-pre-gyp[\\/]lib[\\/]util[\\/]nw-pre-gyp[\\/]/,
+      include: /[\\/]node_modules[\\/]@mapbox[\\/]node-pre-gyp[\\/]/,
       loader: 'ignore-loader',
     });
 
-    // Fix for bcrypt issues with Webpack 5, often needed in Next.js
-    // This prevents Webpack from trying to bundle Node.js native modules for the client
+    // Mark server-only modules as external for the client bundle
     if (!isServer) {
-      // config.resolve.fallback = {
-      //   ...config.resolve.fallback,
-      //   fs: false, // bcrypt might try to use fs, ignore it on client
-      // };
-
-      // Alternatively, mark bcrypt as external if only used server-side (like in API routes)
-      // config.externals.push('bcrypt');
+      config.externals = [
+        ...(config.externals || []),
+        'bcrypt',
+        '@prisma/client',
+        '@auth/prisma-adapter',
+      ]; 
+      // Keep necessary fallbacks for other potential client deps
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false, 
+        path: false,
+        os: false,
+        crypto: false,
+        async_hooks: false, // Keep async_hooks fallback just in case
+      };
     }
-
 
     // Important: return the modified config
     return config;

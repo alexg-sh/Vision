@@ -32,6 +32,8 @@ model User {
   inviterNotifications Notification[]       @relation("InviterNotifications") // Separate relation name
   boardMembers         BoardMember[] // Add this relation
   auditLogs            AuditLog[] // Add this inverse relation for AuditLog
+  bannedOrgActions     OrganizationBan[]    @relation("BannedByUsers") // Relation for bans issued by this user
+  bannedBoardActions   BoardMember[]        @relation("BannedBoardUsers") // Relation for board bans issued by this user
   // Add other fields as needed, e.g., passwordHash if using credentials
 }
 
@@ -119,13 +121,15 @@ model OrganizationBan {
   organizationId String
   bannedAt       DateTime @default(now())
   banReason      String?
-  bannedBy       String? // Admin who banned
+  bannedByUserId String? // Changed from bannedBy: String?
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bannedBy     User?        @relation("BannedByUsers", fields: [bannedByUserId], references: [id], onDelete: SetNull) // Added relation
 
   @@unique([userId, organizationId])
   @@index([organizationId])
+  @@index([bannedByUserId]) // Added index
 }
 
 model Board {
@@ -142,6 +146,7 @@ model Board {
   invites        Invite[]
   notifications  Notification[]
   members        BoardMember[] // Add this relation
+  auditLogs      AuditLog[] // Added inverse relation
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
@@ -151,19 +156,25 @@ model Board {
 
 // Add the BoardMember model here
 model BoardMember {
-  id        String   @id @default(cuid())
-  userId    String
-  boardId   String
-  role      String   @default("MEMBER") // e.g., ADMIN, MEMBER, VIEWER
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String    @id @default(cuid())
+  userId         String
+  boardId        String
+  role           String    @default("MEMBER") // e.g., ADMIN, MEMBER, VIEWER
+  status         String    @default("ACTIVE") // Added: e.g., ACTIVE, BANNED
+  bannedAt       DateTime? // Added: Timestamp when the user was banned from the board
+  banReason      String?   // Added: Optional reason for the board ban
+  bannedByUserId String?   // Added: Admin/Mod who banned from board
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user     User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  board    Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  bannedBy User? @relation("BannedBoardUsers", fields: [bannedByUserId], references: [id], onDelete: SetNull) // Added relation
 
   @@unique([userId, boardId])
   @@index([userId])
   @@index([boardId])
+  @@index([bannedByUserId]) // Added index
 }
 
 model Post {
@@ -187,16 +198,20 @@ model AuditLog {
   id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  userId         String? // User who performed the action (optional)
-  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull) // Add this relation
-  action         String // e.g., "CREATE_BOARD", "UPDATE_POST"
-  entityType     String // e.g., "BOARD", "POST"
-  entityId       String? // ID of the entity affected
-  details        Json? // Additional details about the action
+  boardId        String? // Added: Optional board ID
+  board          Board?       @relation(fields: [boardId], references: [id], onDelete: Cascade) // Added: Optional relation to Board
+  userId         String? // User who performed the action (optional, for system actions)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull) // Relation to User
+  action         String // e.g., "BAN_USER", "CREATE_BOARD", "UPDATE_POST"
+  entityType     String // e.g., "USER", "BOARD", "POST"
+  entityId       String? // ID of the entity affected (e.g., userId, boardId, postId)
+  details        Json? // Additional details about the action (e.g., ban reason, old/new role)
   createdAt      DateTime     @default(now())
 
   @@index([organizationId])
+  @@index([boardId]) // Added index
   @@index([userId])
+  @@index([entityType, entityId]) // Added index for easier lookup of actions on specific entities
 }
 
 model Notification {

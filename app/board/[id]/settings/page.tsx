@@ -35,25 +35,23 @@ import {
   Trash2,
   UserMinus,
   UserPlus,
-  Loader2,
 } from "lucide-react"
 import DashboardHeader from "@/components/dashboard-header"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { prisma } from "@/lib/prisma"
 import { useToast } from "@/hooks/use-toast"
 
 export default function BoardSettingsPage({ params }: { params: { id: string } }) {
+  const { toast } = useToast()
   const router = useRouter()
   const searchParams = useSearchParams()
   const defaultTab = searchParams.get("tab") || "general"
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false)
-  const [inviteUsername, setInviteUsername] = useState("")
-  const [isInviteLoading, setIsInviteLoading] = useState(false)
-  const [boardName, setBoardName] = useState("Feature Requests")
-  const [boardDescription, setBoardDescription] = useState("Collect and prioritize feature ideas from users")
-  const [boardImage, setBoardImage] = useState("/placeholder.svg?height=400&width=1200")
+  const [inviteEmail, setInviteEmail] = useState("")
+  const [boardName, setBoardName] = useState("")
+  const [boardDescription, setBoardDescription] = useState("")
+  const [boardImage, setBoardImage] = useState("")
   const [isPrivate, setIsPrivate] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [bannedUsers, setBannedUsers] = useState([
@@ -64,22 +62,17 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
   const [isGithubConnected, setIsGithubConnected] = useState(true)
   const [githubRepo, setGithubRepo] = useState("acme/project-vision")
 
-  // Fetch board members
-  const [members, setMembers] = useState<any[]>([])
-
-  async function fetchMembers() {
-    // Fetch board to get its organizationId
-    const resBoard = await fetch(`/api/board/${params.id}`)
-    const board = await resBoard.json()
-    if (!board.organizationId) return
-    // Fetch organization members
-    const res = await fetch(`/api/organization/${board.organizationId}/members`)
-    const data = await res.json()
-    setMembers(data.members)
-  }
+  // Fetch real members from API
+  const [members, setMembers] = useState<{ id: string; name: string; email: string; avatar: string | null; role: string }[]>([])
 
   useEffect(() => {
-    fetchMembers()
+    fetch(`/api/boards/${params.id}/members`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load members")
+        return res.json()
+      })
+      .then((data) => setMembers(data))
+      .catch((err) => console.error(err))
   }, [params.id])
 
   // Mock audit logs
@@ -135,18 +128,54 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
     },
   ])
 
-  const handleSaveSettings = () => {
-    // In a real app, this would save the settings to the server
+  // Fetch real board settings on component mount
+  useEffect(() => {
+    fetch(`/api/boards/${params.id}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load board")
+        return res.json()
+      })
+      .then((data) => {
+        setBoardName(data.name)
+        setBoardDescription(data.description || "")
+        setBoardImage(data.image || "")
+        setIsPrivate(data.isPrivate)
+      })
+      .catch((err) => console.error(err))
+  }, [params.id])
+
+  const handleSaveSettings = async () => {
     setIsEditing(false)
-    // Add to audit log
-    const newLog = {
-      id: auditLogs.length + 1,
-      action: "updated settings",
-      user: "John Doe",
-      timestamp: new Date().toISOString(),
-      details: "Updated board settings",
+    try {
+      const response = await fetch(`/api/boards/${params.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: boardName,
+          description: boardDescription,
+          image: boardImage,
+          isPrivate,
+        }),
+      })
+      if (!response.ok) throw new Error("Update failed")
+      const updated = await response.json()
+      // Update state with returned values
+      setBoardName(updated.name)
+      setBoardDescription(updated.description || "")
+      setBoardImage(updated.image || "")
+      setIsPrivate(updated.isPrivate)
+      // Log audit entry
+      const newLog = {
+        id: Date.now(),
+        action: "updated settings",
+        user: "John Doe", // assume fetched or available
+        timestamp: new Date().toISOString(),
+        details: "Updated board settings",
+      }
+      setAuditLogs([newLog, ...auditLogs])
+    } catch (error) {
+      console.error("Error saving settings:", error)
     }
-    setAuditLogs([newLog, ...auditLogs])
   }
 
   const handleDeleteBoard = () => {
@@ -154,45 +183,20 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
     router.push("/dashboard")
   }
 
-  const { toast } = useToast()
-
-  const handleInviteUser = async () => {
-    if (inviteUsername.trim()) {
-      setIsInviteLoading(true)
-      try {
-        const response = await fetch(`/api/invites`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            username: inviteUsername,
-            boardId: params.id,
-          }),
-        })
-
-        const responseData = await response.json()
-
-        if (!response.ok) {
-          throw new Error(responseData.message || "Failed to send invite")
-        }
-
-        toast({
-          title: "Success",
-          description: responseData.message || `Invitation sent to ${inviteUsername}`,
-        })
-        setInviteUsername("")
-        setIsInviteDialogOpen(false)
-        // Re-fetch members after successful invite
-        fetchMembers()
-      } catch (error: any) {
-        console.error("Error sending invite:", error)
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: error.message || "Could not send the invitation.",
-        })
-      } finally {
-        setIsInviteLoading(false)
+  const handleInviteUser = () => {
+    if (inviteEmail.trim()) {
+      // In a real app, this would send an invitation to the user
+      // Add to audit log
+      const newLog = {
+        id: auditLogs.length + 1,
+        action: "invited user",
+        user: "John Doe",
+        timestamp: new Date().toISOString(),
+        details: `Invited '${inviteEmail}' to the board`,
       }
+      setAuditLogs([newLog, ...auditLogs])
+      setInviteEmail("")
+      setIsInviteDialogOpen(false)
     }
   }
 
@@ -409,7 +413,7 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
                   </div>
                   <AlertDialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
                     <AlertDialogTrigger asChild>
-                      <Button disabled={isInviteLoading}>
+                      <Button>
                         <UserPlus className="mr-2 h-4 w-4" />
                         Invite User
                       </Button>
@@ -418,26 +422,25 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
                       <AlertDialogHeader>
                         <AlertDialogTitle>Invite a new member</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Enter the username of the person you want to invite to this board.
+                          Enter the email address of the person you want to invite to this board.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <div className="py-4">
-                        <Label htmlFor="invite-username" className="mb-2 block">
-                          Username
+                        <Label htmlFor="invite-email" className="mb-2 block">
+                          Email address
                         </Label>
                         <Input
-                          id="invite-username"
-                          placeholder="username"
-                          type="text"
-                          value={inviteUsername}
-                          onChange={(e) => setInviteUsername(e.target.value)}
-                          disabled={isInviteLoading}
+                          id="invite-email"
+                          placeholder="colleague@example.com"
+                          type="email"
+                          value={inviteEmail}
+                          onChange={(e) => setInviteEmail(e.target.value)}
                         />
                       </div>
                       <AlertDialogFooter>
-                        <AlertDialogCancel disabled={isInviteLoading}>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleInviteUser} disabled={isInviteLoading || !inviteUsername.trim()}>
-                          {isInviteLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleInviteUser}>
+                          <Mail className="mr-2 h-4 w-4" />
                           Send Invitation
                         </AlertDialogAction>
                       </AlertDialogFooter>
@@ -457,11 +460,6 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="font-medium">{member.name}</p>
-                            {member.isCurrentUser && (
-                              <Badge variant="outline" className="text-xs">
-                                You
-                              </Badge>
-                            )}
                           </div>
                           <p className="text-sm text-muted-foreground">{member.email}</p>
                         </div>
@@ -476,49 +474,47 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
                           {member.role === "admin" && <Shield className="mr-1 h-3 w-3" />}
                           {member.role}
                         </Badge>
-                        {!member.isCurrentUser && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onSelect={() => handleChangeRole(member.id, "admin")}
-                                disabled={member.role === "admin"}
-                              >
-                                Make Admin
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onSelect={() => handleChangeRole(member.id, "moderator")}
-                                disabled={member.role === "moderator"}
-                              >
-                                Make Moderator
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onSelect={() => handleChangeRole(member.id, "member")}
-                                disabled={member.role === "member"}
-                              >
-                                Make Member
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onSelect={() => handleRemoveUser(member.id)}
-                                className="text-destructive focus:text-destructive"
-                              >
-                                <UserMinus className="mr-2 h-4 w-4" />
-                                Remove from Board
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onSelect={() => handleBanUser(member.id)}
-                                className="text-destructive focus:text-destructive"
-                              >
-                                <Ban className="mr-2 h-4 w-4" />
-                                Ban User
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onSelect={() => handleChangeRole(member.id, "admin")}
+                              disabled={member.role === "admin"}
+                            >
+                              Make Admin
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => handleChangeRole(member.id, "moderator")}
+                              disabled={member.role === "moderator"}
+                            >
+                              Make Moderator
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => handleChangeRole(member.id, "member")}
+                              disabled={member.role === "member"}
+                            >
+                              Make Member
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => handleRemoveUser(member.id)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <UserMinus className="mr-2 h-4 w-4" />
+                              Remove from Board
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => handleBanUser(member.id)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Ban className="mr-2 h-4 w-4" />
+                              Ban User
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   ))}

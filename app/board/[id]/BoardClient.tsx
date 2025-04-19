@@ -52,18 +52,24 @@ import {
   PieChart,
 } from "lucide-react"
 import DashboardHeader from "@/components/dashboard-header"
-import { PostWithClientData, BoardWithPosts, PollOption } from "./page" // Import types from the server component
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+// Import the types defined in page.tsx
+import type { PostWithClientData, ClientBoardData, PollOption } from './page';
+
+// --- Component Props ---
 
 interface BoardClientProps {
-  board: BoardWithPosts;
+  board: ClientBoardData; // Use the simplified, serializable board type
   initialPosts: PostWithClientData[];
-  userRole: string; // 'guest', 'member', 'admin', 'moderator', etc.
+  userRole: 'guest' | 'member' | 'moderator' | 'admin' | 'creator';
 }
 
-// Helper function to get current user ID (replace with actual implementation)
+// --- Helper Functions (if any) ---
+
+// Placeholder for getting current user ID (replace with actual implementation)
 const getCurrentUserId = (): string | null => {
-  // This needs to be implemented based on how you access session/user data on the client
-  // For example, using useSession() from next-auth/react
+  // Example using useSession hook (if available in this component's context)
   // const { data: session } = useSession();
   // return session?.user?.id || null;
   return "temp_user_id"; // Placeholder
@@ -82,9 +88,8 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
   const currentUserId = getCurrentUserId(); // Get current user ID
 
   // --- Permissions ---
-  const canCreatePost = userRole === 'admin' || userRole === 'moderator' || userRole === 'member';
-  const canManageBoard = userRole === 'admin' || userRole === 'moderator';
-  // Corrected canDeletePost to use currentUserId
+  const canCreatePost = true; // All users can post
+  const canManageBoard = userRole === 'admin' || userRole === 'moderator' || userRole === 'creator'; // Owner/controller also has full perms
   const canDeletePost = (postAuthorId: string) => userRole === 'admin' || userRole === 'moderator' || (currentUserId !== null && postAuthorId === currentUserId);
 
 
@@ -291,6 +296,7 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
             )}
             {canManageBoard && (
               <>
+                {/* Invite dialog stays unchanged */}
                 <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
                   <DialogTrigger asChild>
                     <Button variant="outline">
@@ -318,43 +324,10 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
-
-                <Dialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="icon">
-                      <Settings className="h-4 w-4" />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Board Settings</DialogTitle>
-                      <DialogDescription>
-                        Manage settings for the {board.name} board.
-                      </DialogDescription>
-                    </DialogHeader>
-                    {/* Settings Form */}
-                    <div className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="board-name">Board Name</Label>
-                        <Input id="board-name" defaultValue={board.name} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="board-description">Description</Label>
-                        <Textarea id="board-description" defaultValue={"Board description placeholder"} />
-                      </div>
-                      {/* Add privacy settings, etc. */}
-                      <div className="flex items-center space-x-2">
-                        <Lock className="h-4 w-4" />
-                        <Label>Privacy Settings</Label>
-                        {/* Add privacy controls */}
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsSettingsDialogOpen(false)}>Cancel</Button>
-                      <Button>Save Changes</Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                {/* Link to dedicated settings page */}
+                <Button variant="outline" size="icon" onClick={() => router.push(`/board/${board.id}/settings`)}>
+                  <Settings className="h-4 w-4" />
+                </Button>
               </>
             )}
           </div>
