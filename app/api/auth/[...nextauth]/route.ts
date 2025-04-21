@@ -77,7 +77,6 @@ export const authOptions: AuthOptions = {
       if (token && session.user) {
         session.user.id = token.sub ?? ""; // Add user ID from token to session, fallback to an empty string
       }
-      console.log("Session callback, session:", session);
       return session;
     },
     async jwt({ token, user }) {

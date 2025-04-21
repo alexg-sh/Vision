@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -40,7 +40,20 @@ import DashboardHeader from "@/components/dashboard-header"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useToast } from "@/hooks/use-toast"
 
-export default function BoardSettingsPage({ params }: { params: { id: string } }) {
+// Define the Member type including status
+interface Member {
+  id: string
+  name: string | null
+  email: string | null
+  avatar: string | null
+  role: string
+  status: string
+}
+
+export default function BoardSettingsPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = React.use(params)
+  const boardId = resolvedParams.id
+
   const { toast } = useToast()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -48,106 +61,167 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false)
-  const [inviteEmail, setInviteEmail] = useState("")
+  const [inviteUsername, setInviteUsername] = useState("")
   const [boardName, setBoardName] = useState("")
   const [boardDescription, setBoardDescription] = useState("")
   const [boardImage, setBoardImage] = useState("")
   const [isPrivate, setIsPrivate] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
-  const [bannedUsers, setBannedUsers] = useState([
-    { id: 3, name: "Alex Johnson", email: "alex@example.com", avatar: "/placeholder.svg?height=40&width=40" },
-  ])
 
-  // GitHub integration state
   const [isGithubConnected, setIsGithubConnected] = useState(true)
   const [githubRepo, setGithubRepo] = useState("acme/project-vision")
 
-  // Fetch real members from API
-  const [members, setMembers] = useState<{ id: string; name: string; email: string; avatar: string | null; role: string }[]>([])
+  const [members, setMembers] = useState<Member[]>([])
+  const [isLoadingMembers, setIsLoadingMembers] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+
+  const fetchMembers = useCallback(async () => {
+    setIsLoadingMembers(true)
+    setFetchError(null)
+    try {
+      const res = await fetch(`/api/boards/${boardId}/members`)
+      if (res.status === 403) {
+        // If user is not a board member, inform and navigate away
+        toast({
+          variant: "destructive",
+          title: "Access Denied",
+          description: "You do not have permission to view this board's members.",
+        })
+        router.push('/dashboard')
+        return
+      }
+      if (!res.ok) {
+        let errorDetails = `Status: ${res.status}`
+        let errorMessage = "Could not fetch the list of board members. Please try again later."
+        try {
+          const errorData = await res.json()
+          errorDetails += `, Message: ${errorData.message || JSON.stringify(errorData)}`
+          errorMessage = errorData.message || errorMessage
+        } catch (e) {
+          try {
+            const errorText = await res.text()
+            errorDetails += `, Body: ${errorText}`
+          } catch (textError) {}
+        }
+        console.error("Failed to load members:", errorDetails)
+        setFetchError(errorMessage)
+        toast({
+          variant: "destructive",
+          title: "Error Loading Members",
+          description: errorMessage,
+        })
+      } else {
+        const data = await res.json()
+        setMembers(data)
+      }
+    } catch (err: any) {
+      console.error("Error fetching members:", err)
+      const errorMessage = err.message || "An unexpected error occurred while fetching members."
+      setFetchError(errorMessage)
+      toast({
+        variant: "destructive",
+        title: "Error Loading Members",
+        description: errorMessage,
+      })
+    } finally {
+      setIsLoadingMembers(false)
+    }
+  }, [boardId, toast, router])
 
   useEffect(() => {
-    fetch(`/api/boards/${params.id}/members`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load members")
-        return res.json()
-      })
-      .then((data) => setMembers(data))
-      .catch((err) => console.error(err))
-  }, [params.id])
+    fetchMembers()
+  }, [boardId, fetchMembers])
 
-  // Mock audit logs
   const [auditLogs, setAuditLogs] = useState([
     {
       id: 1,
       action: "created board",
       user: "John Doe",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(), // 2 days ago
+      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
       details: "Board 'Feature Requests' was created",
     },
     {
       id: 2,
       action: "invited user",
       user: "John Doe",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
+      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
       details: "Invited 'Jane Smith' to the board",
     },
     {
       id: 3,
       action: "changed role",
       user: "John Doe",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(), // 12 hours ago
+      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
       details: "Changed 'Jane Smith' role to 'moderator'",
     },
     {
       id: 4,
       action: "banned user",
       user: "Jane Smith",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(), // 6 hours ago
+      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
       details: "Banned 'Alex Johnson' from the board",
     },
     {
       id: 5,
       action: "deleted post",
       user: "Jane Smith",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
+      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
       details: "Deleted post 'Inappropriate content'",
     },
     {
       id: 6,
       action: "connected github",
       user: "John Doe",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 1).toISOString(), // 1 hour ago
+      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 1).toISOString(),
       details: "Connected GitHub repository 'acme/project-vision'",
     },
     {
       id: 7,
       action: "linked issue",
       user: "John Doe",
-      timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 minutes ago
+      timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
       details: "Linked GitHub issue #42 to post 'Add dark mode support'",
     },
   ])
 
-  // Fetch real board settings on component mount
+  // State for board settings loading and errors
+  const [isLoadingBoard, setIsLoadingBoard] = useState(true)
+  const [boardError, setBoardError] = useState<string | null>(null)
+
   useEffect(() => {
-    fetch(`/api/boards/${params.id}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load board")
-        return res.json()
-      })
-      .then((data) => {
+    async function loadBoard() {
+      setIsLoadingBoard(true)
+      setBoardError(null)
+      try {
+        const res = await fetch(`/api/boards/${boardId}`)
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          const message = err.message || 'Failed to load board'
+          toast({ variant: 'destructive', title: 'Error Loading Board', description: message })
+          setBoardError(message)
+          return
+        }
+        const data = await res.json()
         setBoardName(data.name)
         setBoardDescription(data.description || "")
         setBoardImage(data.image || "")
         setIsPrivate(data.isPrivate)
-      })
-      .catch((err) => console.error(err))
-  }, [params.id])
+      } catch (error: any) {
+        const message = error.message || 'An unexpected error occurred while loading board'
+        console.error('Error loading board:', error)
+        toast({ variant: 'destructive', title: 'Error Loading Board', description: message })
+        setBoardError(message)
+      } finally {
+        setIsLoadingBoard(false)
+      }
+    }
+    loadBoard()
+  }, [boardId, toast])
 
   const handleSaveSettings = async () => {
     setIsEditing(false)
     try {
-      const response = await fetch(`/api/boards/${params.id}`, {
+      const response = await fetch(`/api/boards/${boardId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -159,16 +233,14 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
       })
       if (!response.ok) throw new Error("Update failed")
       const updated = await response.json()
-      // Update state with returned values
       setBoardName(updated.name)
       setBoardDescription(updated.description || "")
       setBoardImage(updated.image || "")
       setIsPrivate(updated.isPrivate)
-      // Log audit entry
       const newLog = {
         id: Date.now(),
         action: "updated settings",
-        user: "John Doe", // assume fetched or available
+        user: "John Doe",
         timestamp: new Date().toISOString(),
         details: "Updated board settings",
       }
@@ -179,36 +251,62 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
   }
 
   const handleDeleteBoard = () => {
-    // In a real app, this would delete the board
     router.push("/dashboard")
   }
 
-  const handleInviteUser = () => {
-    if (inviteEmail.trim()) {
-      // In a real app, this would send an invitation to the user
-      // Add to audit log
-      const newLog = {
-        id: auditLogs.length + 1,
-        action: "invited user",
-        user: "John Doe",
-        timestamp: new Date().toISOString(),
-        details: `Invited '${inviteEmail}' to the board`,
+  const handleInviteUser = async () => {
+    if (inviteUsername.trim()) {
+      try {
+        const response = await fetch(`/api/invites`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: inviteUsername,
+            boardId: boardId,
+          }),
+        })
+
+        const responseData = await response.json()
+
+        if (!response.ok) {
+          throw new Error(responseData.message || "Failed to send invite")
+        }
+
+        toast({
+          title: "Invite Sent",
+          description: responseData.message || `Invitation sent to ${inviteUsername}.`,
+        })
+
+        const newLog = {
+          id: Date.now(),
+          action: "invited user",
+          user: "Current User",
+          timestamp: new Date().toISOString(),
+          details: `Invited '${inviteUsername}' to the board`,
+        }
+        setAuditLogs([newLog, ...auditLogs])
+
+        setInviteUsername("")
+        setIsInviteDialogOpen(false)
+      } catch (error: any) {
+        console.error("Error sending invite:", error)
+        toast({
+          variant: "destructive",
+          title: "Invite Failed",
+          description: error.message || "Could not send the invitation.",
+        })
       }
-      setAuditLogs([newLog, ...auditLogs])
-      setInviteEmail("")
-      setIsInviteDialogOpen(false)
     }
   }
 
-  const handleChangeRole = (userId: number, newRole: string) => {
+  const handleChangeRole = (userId: string, newRole: string) => {
     setMembers(
       members.map((member) => {
         if (member.id === userId) {
-          // Add to audit log
           const newLog = {
-            id: auditLogs.length + 1,
+            id: Date.now(),
             action: "changed role",
-            user: "John Doe",
+            user: "Current User",
             timestamp: new Date().toISOString(),
             details: `Changed '${member.name}' role to '${newRole}'`,
           }
@@ -218,54 +316,107 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
         return member
       }),
     )
+    toast({ title: "Role Updated (Local)", description: "API call not yet implemented." })
   }
 
-  const handleRemoveUser = (userId: number) => {
+  const handleRemoveUser = (userId: string) => {
     const userToRemove = members.find((m) => m.id === userId)
     if (userToRemove) {
       setMembers(members.filter((member) => member.id !== userId))
-      // Add to audit log
       const newLog = {
-        id: auditLogs.length + 1,
+        id: Date.now(),
         action: "removed user",
-        user: "John Doe",
+        user: "Current User",
         timestamp: new Date().toISOString(),
         details: `Removed '${userToRemove.name}' from the board`,
       }
       setAuditLogs([newLog, ...auditLogs])
+      toast({ title: "User Removed (Local)", description: "API call not yet implemented." })
     }
   }
 
-  const handleBanUser = (userId: number) => {
+  const handleBanUser = async (userId: string, banReason: string | null = null) => {
     const userToBan = members.find((m) => m.id === userId)
-    if (userToBan) {
-      setMembers(members.filter((member) => member.id !== userId))
-      setBannedUsers([...bannedUsers, userToBan])
-      // Add to audit log
+    if (!userToBan) return
+
+    try {
+      const response = await fetch(`/api/boards/${boardId}/members/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "BANNED",
+          banReason: banReason,
+        }),
+      })
+
+      const responseData = await response.json()
+
+      if (!response.ok) {
+        throw new Error(responseData.message || "Failed to ban user")
+      }
+
+      toast({
+        title: "User Banned",
+        description: `${userToBan.name || "User"} has been banned from the board.`,
+      })
+
+      setMembers(members.map((m) => (m.id === userId ? { ...m, status: "BANNED" } : m)))
+
       const newLog = {
-        id: auditLogs.length + 1,
+        id: Date.now(),
         action: "banned user",
-        user: "John Doe",
+        user: "Current User",
         timestamp: new Date().toISOString(),
-        details: `Banned '${userToBan.name}' from the board`,
+        details: `Banned '${userToBan.name}' from the board${banReason ? ` (Reason: ${banReason})` : ""}`,
       }
       setAuditLogs([newLog, ...auditLogs])
+    } catch (error: any) {
+      console.error("Error banning user:", error)
+      toast({
+        variant: "destructive",
+        title: "Ban Failed",
+        description: error.message || "Could not ban the user.",
+      })
     }
   }
 
-  const handleUnbanUser = (userId: number) => {
-    const userToUnban = bannedUsers.find((u) => u.id === userId)
-    if (userToUnban) {
-      setBannedUsers(bannedUsers.filter((user) => user.id !== userId))
-      // Add to audit log
+  const handleUnbanUser = async (userId: string) => {
+    const userToUnban = members.find((m) => m.id === userId && m.status === "BANNED")
+    if (!userToUnban) return
+
+    try {
+      const response = await fetch(`/api/boards/${boardId}/members/${userId}`, {
+        method: "DELETE",
+      })
+
+      const responseData = await response.json()
+
+      if (!response.ok) {
+        throw new Error(responseData.message || "Failed to unban user")
+      }
+
+      toast({
+        title: "User Unbanned",
+        description: `${userToUnban.name || "User"} has been unbanned.`,
+      })
+
+      setMembers(members.map((m) => (m.id === userId ? { ...m, status: "ACTIVE" } : m)))
+
       const newLog = {
-        id: auditLogs.length + 1,
+        id: Date.now(),
         action: "unbanned user",
-        user: "John Doe",
+        user: "Current User",
         timestamp: new Date().toISOString(),
         details: `Unbanned '${userToUnban.name}'`,
       }
       setAuditLogs([newLog, ...auditLogs])
+    } catch (error: any) {
+      console.error("Error unbanning user:", error)
+      toast({
+        variant: "destructive",
+        title: "Unban Failed",
+        description: error.message || "Could not unban the user.",
+      })
     }
   }
 
@@ -280,12 +431,15 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
     }).format(date)
   }
 
+  const activeMembers = members.filter((m) => m.status === "ACTIVE")
+  const bannedMembers = members.filter((m) => m.status === "BANNED")
+
   return (
     <div className="flex min-h-screen flex-col">
       <DashboardHeader />
       <main className="flex-1 container py-6">
         <div className="flex items-center gap-2 mb-6">
-          <Button variant="ghost" size="icon" onClick={() => router.push(`/board/${params.id}`)}>
+          <Button variant="ghost" size="icon" onClick={() => router.push(`/board/${boardId}`)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <h1 className="text-2xl font-bold">Board Settings</h1>
@@ -294,8 +448,8 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
         <Tabs defaultValue={defaultTab}>
           <TabsList className="mb-6">
             <TabsTrigger value="general">General</TabsTrigger>
-            <TabsTrigger value="members">Members</TabsTrigger>
-            <TabsTrigger value="banned">Banned Users</TabsTrigger>
+            <TabsTrigger value="members">Members ({activeMembers.length})</TabsTrigger>
+            <TabsTrigger value="banned">Banned ({bannedMembers.length})</TabsTrigger>
             <TabsTrigger value="github">GitHub</TabsTrigger>
             <TabsTrigger value="audit">Audit Log</TabsTrigger>
           </TabsList>
@@ -408,8 +562,8 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Board Members</CardTitle>
-                    <CardDescription>Manage members and their roles within this board.</CardDescription>
+                    <CardTitle>Active Board Members</CardTitle>
+                    <CardDescription>Manage active members and their roles within this board.</CardDescription>
                   </div>
                   <AlertDialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
                     <AlertDialogTrigger asChild>
@@ -422,19 +576,19 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
                       <AlertDialogHeader>
                         <AlertDialogTitle>Invite a new member</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Enter the email address of the person you want to invite to this board.
+                          Enter the username of the person you want to invite to this board.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <div className="py-4">
-                        <Label htmlFor="invite-email" className="mb-2 block">
-                          Email address
+                        <Label htmlFor="invite-username" className="mb-2 block">
+                          Username
                         </Label>
                         <Input
-                          id="invite-email"
-                          placeholder="colleague@example.com"
-                          type="email"
-                          value={inviteEmail}
-                          onChange={(e) => setInviteEmail(e.target.value)}
+                          id="invite-username"
+                          placeholder="username"
+                          type="text"
+                          value={inviteUsername}
+                          onChange={(e) => setInviteUsername(e.target.value)}
                         />
                       </div>
                       <AlertDialogFooter>
@@ -449,76 +603,86 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {members.map((member) => (
-                    <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={member.avatar || "/placeholder.svg"} alt={member.name} />
-                          <AvatarFallback>{member.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium">{member.name}</p>
+                {isLoadingMembers ? (
+                  <p>Loading members...</p>
+                ) : fetchError ? (
+                  <p className="text-destructive">Error: {fetchError}</p>
+                ) : activeMembers.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>No active members found.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {activeMembers.map((member) => (
+                      <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={member.avatar || "/placeholder.svg"} alt={member.name ?? "User"} />
+                            <AvatarFallback>{member.name?.charAt(0) ?? "U"}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{member.name}</p>
+                            </div>
+                            <p className="text-sm text-muted-foreground">{member.email}</p>
                           </div>
-                          <p className="text-sm text-muted-foreground">{member.email}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={
+                              member.role === "ADMIN" ? "default" : member.role === "MODERATOR" ? "secondary" : "outline"
+                            }
+                            className="capitalize"
+                          >
+                            {member.role === "ADMIN" && <Shield className="mr-1 h-3 w-3" />}
+                            {member.role.toLowerCase()}
+                          </Badge>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onSelect={() => handleChangeRole(member.id, "ADMIN")}
+                                disabled={member.role === "ADMIN"}
+                              >
+                                Make Admin
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() => handleChangeRole(member.id, "MODERATOR")}
+                                disabled={member.role === "MODERATOR"}
+                              >
+                                Make Moderator
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() => handleChangeRole(member.id, "MEMBER")}
+                                disabled={member.role === "MEMBER"}
+                              >
+                                Make Member
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() => handleRemoveUser(member.id)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <UserMinus className="mr-2 h-4 w-4" />
+                                Remove from Board
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() => handleBanUser(member.id)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Ban className="mr-2 h-4 w-4" />
+                                Ban User
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant={
-                            member.role === "admin" ? "default" : member.role === "moderator" ? "secondary" : "outline"
-                          }
-                          className="capitalize"
-                        >
-                          {member.role === "admin" && <Shield className="mr-1 h-3 w-3" />}
-                          {member.role}
-                        </Badge>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onSelect={() => handleChangeRole(member.id, "admin")}
-                              disabled={member.role === "admin"}
-                            >
-                              Make Admin
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onSelect={() => handleChangeRole(member.id, "moderator")}
-                              disabled={member.role === "moderator"}
-                            >
-                              Make Moderator
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onSelect={() => handleChangeRole(member.id, "member")}
-                              disabled={member.role === "member"}
-                            >
-                              Make Member
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onSelect={() => handleRemoveUser(member.id)}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <UserMinus className="mr-2 h-4 w-4" />
-                              Remove from Board
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onSelect={() => handleBanUser(member.id)}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Ban className="mr-2 h-4 w-4" />
-                              Ban User
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -527,21 +691,25 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
             <Card>
               <CardHeader>
                 <CardTitle>Banned Users</CardTitle>
-                <CardDescription>Users who are banned from this board.</CardDescription>
+                <CardDescription>Users who are currently banned from this board.</CardDescription>
               </CardHeader>
               <CardContent>
-                {bannedUsers.length === 0 ? (
+                {isLoadingMembers ? (
+                  <p>Loading members...</p>
+                ) : fetchError ? (
+                  <p className="text-destructive">Error: {fetchError}</p>
+                ) : bannedMembers.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    <p>No banned users</p>
+                    <p>No banned users found.</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {bannedUsers.map((user) => (
-                      <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    {bannedMembers.map((user) => (
+                      <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
                         <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
-                            <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                          <Avatar className="h-10 w-10 opacity-70">
+                            <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name ?? "User"} />
+                            <AvatarFallback>{user.name?.charAt(0) ?? "U"}</AvatarFallback>
                           </Avatar>
                           <div>
                             <p className="font-medium">{user.name}</p>
@@ -598,7 +766,7 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => router.push(`/board/${params.id}/settings/github`)}
+                        onClick={() => router.push(`/board/${boardId}/settings/github`)}
                       >
                         Manage Integration
                       </Button>
@@ -613,7 +781,7 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => router.push(`/board/${params.id}?tab=github`)}
+                            onClick={() => router.push(`/board/${boardId}?tab=github`)}
                           >
                             View Issues
                           </Button>
@@ -628,7 +796,7 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => router.push(`/board/${params.id}/settings/github`)}
+                            onClick={() => router.push(`/board/${boardId}/settings/github`)}
                           >
                             Manage Links
                           </Button>
@@ -637,7 +805,7 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
                     </div>
 
                     <div className="flex justify-end">
-                      <Button variant="outline" onClick={() => router.push(`/board/${params.id}/settings/github`)}>
+                      <Button variant="outline" onClick={() => router.push(`/board/${boardId}/settings/github`)}>
                         Advanced GitHub Settings
                       </Button>
                     </div>
@@ -649,7 +817,7 @@ export default function BoardSettingsPage({ params }: { params: { id: string } }
                     <p className="text-muted-foreground mb-6 max-w-md mx-auto">
                       Connect your board to a GitHub repository to sync issues and streamline your workflow.
                     </p>
-                    <Button onClick={() => router.push(`/board/${params.id}/settings/github`)}>
+                    <Button onClick={() => router.push(`/board/${boardId}/settings/github`)}>
                       <Github className="mr-2 h-4 w-4" />
                       Connect GitHub Repository
                     </Button>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -37,7 +38,11 @@ export async function POST(req: Request) {
     console.error("Error creating personal board:", error);
     // Distinguish between JSON parsing errors and other errors
     if (error instanceof SyntaxError) {
-        return NextResponse.json({ message: 'Invalid JSON payload' }, { status: 400 });
+      return NextResponse.json({ message: 'Invalid JSON payload' }, { status: 400 });
+    }
+    // Handle foreign key constraint violation where createdById doesn't exist
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+      return NextResponse.json({ message: 'Invalid session user. Please log in again.' }, { status: 401 });
     }
     return NextResponse.json({ message: 'Failed to create board', error: error.message }, { status: 500 });
   }

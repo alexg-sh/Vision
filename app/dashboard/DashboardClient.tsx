@@ -28,16 +28,32 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Loader2, MessageSquare, Globe, Lock } from "lucide-react"
-import { BoardWithCounts } from "./page"
+import { toast } from "@/hooks/use-toast"
+
+// Define BoardWithCounts locally as the module '@types' could not be resolved
+type BoardWithCounts = {
+  id: string;
+  name: string;
+  description: string | null;
+  image: string | null;
+  isPrivate: boolean;
+  _count?: {
+    posts?: number;
+  } | null;
+};
 
 interface DashboardClientProps {
   userId: string;
   personalBoards: BoardWithCounts[];
+  memberBoards: BoardWithCounts[];
+  organizations: { id: string; name: string; slug: string; imageUrl: string | null }[];
 }
 
 export default function DashboardClient({
   userId,
   personalBoards,
+  memberBoards,
+  organizations,
 }: DashboardClientProps) {
   const router = useRouter()
   const [isCreateBoardDialogOpen, setIsCreateBoardDialogOpen] = useState(false)
@@ -65,8 +81,12 @@ export default function DashboardClient({
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to create board');
+          const errorData = await response.json().catch(() => ({}));
+          const message = errorData.message || 'Failed to create board';
+          toast({ variant: 'destructive', title: 'Create Failed', description: message });
+          setError(message);
+          setIsLoading(false);
+          return;
         }
 
         setNewBoardName("")
@@ -87,7 +107,7 @@ export default function DashboardClient({
   return (
     <>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">My Boards</h1>
+        <h1 className="text-3xl font-bold">Dashboard Overview</h1>
         <div className="flex items-center gap-2">
           <Dialog open={isCreateBoardDialogOpen} onOpenChange={setIsCreateBoardDialogOpen}>
             <DialogTrigger asChild>
@@ -158,19 +178,9 @@ export default function DashboardClient({
         </div>
       </div>
 
-      <div className="space-y-6">
-        {personalBoards.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-8 text-center">
-            <h3 className="text-lg font-medium mb-2">No boards yet</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              Create a board for your ideas or tasks.
-            </p>
-            <Button onClick={() => setIsCreateBoardDialogOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Board
-            </Button>
-          </div>
-        ) : (
+      <section className="mb-12">
+        <h2 className="text-2xl font-semibold mb-4">My Boards</h2>
+        {personalBoards.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {personalBoards.map((board) => (
               <Link key={board.id} href={`/board/${board.id}`}>
@@ -215,8 +225,90 @@ export default function DashboardClient({
               </Link>
             ))}
           </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>No boards owned. Join or create one!</p>
+          </div>
         )}
-      </div>
+        {memberBoards.length > 0 && (
+          <>
+            <h3 className="text-xl font-semibold mt-10 mb-4">Boards I'm a Member Of</h3>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {memberBoards.map((board) => (
+                <Link key={board.id} href={`/board/${board.id}`}>
+                  <Card className="h-full hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors overflow-hidden">
+                    <div className="relative h-40 w-full">
+                      <Image src={board.image || "/placeholder.svg"} alt={board.name} fill className="object-cover" />
+                      {board.isPrivate && (
+                        <div className="absolute top-2 right-2">
+                          <Badge variant="secondary" className="gap-1">
+                            <Lock className="h-3 w-3" />
+                            Private
+                          </Badge>
+                        </div>
+                      )}
+                      {!board.isPrivate && (
+                        <div className="absolute top-2 right-2">
+                          <Badge variant="outline" className="gap-1">
+                            <Globe className="h-3 w-3" />
+                            Public
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+                    <CardHeader>
+                      <CardTitle>{board.name}</CardTitle>
+                      <CardDescription>{board.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center gap-1">
+                          <MessageSquare className="h-4 w-4" />
+                          <span>{board._count?.posts ?? 0} posts</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter>
+                      <Button variant="outline" size="sm" className="w-full">
+                        View Board
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
+
+      <section>
+        <h2 className="text-2xl font-semibold mb-4">My Organizations</h2>
+        {organizations.length > 0 ? (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {organizations.map((org) => (
+              <Link key={org.id} href={`/organization/${org.slug}`}>
+                <Card className="h-full hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors overflow-hidden">
+                  <div className="relative h-40 w-full">
+                    <Image src={org.imageUrl || "/placeholder.svg"} alt={org.name} fill className="object-cover" />
+                  </div>
+                  <CardHeader>
+                    <CardTitle>{org.name}</CardTitle>
+                  </CardHeader>
+                  <CardFooter>
+                    <Button variant="outline" size="sm" className="w-full">
+                      View Organization
+                    </Button>
+                  </CardFooter>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>You are not part of any organization.</p>
+          </div>
+        )}
+      </section>
     </>
   )
 }

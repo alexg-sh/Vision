@@ -30,25 +30,38 @@ export default async function DashboardPage() {
 
   const userId = session.user.id;
 
-  // Fetch personal boards (created by user, not belonging to any organization)
+  // 1. Owned personal boards
   const personalBoards: BoardWithCounts[] = await prisma.board.findMany({
-    where: {
-      createdById: userId,
-      organizationId: null,
-    },
-    include: {
-      _count: { select: { posts: true } },
-    },
+    where: { createdById: userId, organizationId: null },
+    include: { _count: { select: { posts: true } } },
     orderBy: { createdAt: 'desc' },
+  });
+
+  // 2. Boards where user is member (excluding owned to avoid duplicates)
+  const memberBoards: BoardWithCounts[] = await prisma.board.findMany({
+    where: { 
+      members: { some: { userId } },
+      createdById: { not: userId }
+    },
+    include: { _count: { select: { posts: true } } },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  // 3. Organizations where user is a member
+  const myOrgs = await prisma.organization.findMany({
+    where: { members: { some: { userId } } },
+    select: { id: true, name: true, slug: true, imageUrl: true }
   });
 
   return (
     <div className="flex min-h-screen flex-col">
       <DashboardHeader />
-      <main className="flex-1 container py-6">
+      <main className="flex-1 container py-6 space-y-10">
         <DashboardClient
           userId={userId}
           personalBoards={personalBoards}
+          memberBoards={memberBoards}
+          organizations={myOrgs}
         />
       </main>
     </div>
