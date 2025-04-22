@@ -3,7 +3,13 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { prisma } from '@/lib/prisma'
 
-export async function GET(_req: Request, { params }) {
+// Define RouteContext for clarity, assuming params might be a Promise
+interface RouteContext {
+  params: Promise<{ id: string }>
+}
+
+export async function GET(_req: Request, { params: paramsPromise }: RouteContext) {
+  const params = await paramsPromise // Await the params Promise
   const boardId = params.id
   const posts = await prisma.post.findMany({
     where: { boardId },
@@ -13,10 +19,11 @@ export async function GET(_req: Request, { params }) {
   return NextResponse.json(posts)
 }
 
-export async function POST(req: Request, { params }) {
+export async function POST(req: Request, { params: paramsPromise }: RouteContext) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   const userId = session.user.id
+  const params = await paramsPromise // Await the params Promise
   const boardId = params.id
   try {
     const { title, content } = await req.json()

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -10,98 +10,47 @@ import { Textarea } from "@/components/ui/textarea"
 import { ArrowLeft, ThumbsDown, ThumbsUp, Github } from "lucide-react"
 import DashboardHeader from "@/components/dashboard-header"
 
-export default function PostDetailPage({ params }: { params: { id: string; postId: string } }) {
+export default function PostDetailPage({ params: paramsPromise }: { params: Promise<{ id: string; postId: string }> }) {
+  const params = use(paramsPromise)
+  const boardId = params.id
+  const postId = params.postId
   const router = useRouter()
+  const [post, setPost] = useState<any | null>(null)
+  const [comments, setComments] = useState<any[]>([])
   const [newComment, setNewComment] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Mock post data
-  const [post, setPost] = useState({
-    id: Number.parseInt(params.postId),
-    title: "Add dark mode support",
-    description:
-      "It would be great to have a dark mode option for the dashboard. This would help reduce eye strain when using the application in low-light environments.",
-    votes: 15,
-    status: "planned",
-    author: {
-      name: "John Doe",
-      avatar: "/placeholder.svg?height=40&width=40",
-      role: "member",
-    },
-    userVote: 1, // 1 = upvote, -1 = downvote, 0 = no vote
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(), // 3 days ago
-    githubIssue: {
-      linked: true,
-      number: 42,
-      url: "https://github.com/acme/project-vision/issues/42",
-      status: "open",
-    },
-  })
-
-  // Mock comments data
-  const [comments, setComments] = useState([
-    {
-      id: 1,
-      content:
-        "I agree, dark mode would be a great addition. It would also be nice to have an auto-switch based on system preferences.",
-      author: {
-        name: "Jane Smith",
-        avatar: "/placeholder.svg?height=40&width=40",
-        role: "moderator",
-      },
-      votes: 8,
-      userVote: 0,
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(), // 2 days ago
-      replies: [
-        {
-          id: 3,
-          content: "System preference detection is already on our roadmap. We'll consider bundling it with dark mode.",
-          author: {
-            name: "Admin User",
-            avatar: "/placeholder.svg?height=40&width=40",
-            role: "admin",
-          },
-          votes: 3,
-          userVote: 0,
-          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1).toISOString(), // 1 day ago
-        },
-      ],
-    },
-    {
-      id: 2,
-      content: "Could we also get a high contrast mode for accessibility?",
-      author: {
-        name: "Mike Wilson",
-        avatar: "/placeholder.svg?height=40&width=40",
-        role: "member",
-      },
-      votes: 5,
-      userVote: 1,
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(), // 12 hours ago
-      replies: [],
-    },
-  ])
+  useEffect(() => {
+    async function fetchData() {
+      const [postRes, commentsRes] = await Promise.all([
+        fetch(`/api/boards/${boardId}/posts/${postId}`),
+        fetch(`/api/boards/${boardId}/posts/${postId}/comments`),
+      ])
+      if (postRes.ok) {
+        setPost(await postRes.json())
+      }
+      if (commentsRes.ok) {
+        setComments(await commentsRes.json())
+      }
+    }
+    fetchData()
+  }, [boardId, postId])
 
   const handleVote = (postId: number, voteType: 1 | -1) => {
     setPost((post) => {
-      // If already voted the same way, remove vote
       if (post.userVote === voteType) {
         return {
           ...post,
           votes: post.votes - voteType,
           userVote: 0,
         }
-      }
-      // If voted the opposite way, change vote (counts as 2)
-      else if (post.userVote !== 0) {
+      } else if (post.userVote !== 0) {
         return {
           ...post,
           votes: post.votes + voteType * 2,
           userVote: voteType,
         }
-      }
-      // If not voted yet, add vote
-      else {
+      } else {
         return {
           ...post,
           votes: post.votes + voteType,
@@ -115,24 +64,19 @@ export default function PostDetailPage({ params }: { params: { id: string; postI
     setComments((comments) =>
       comments.map((comment) => {
         if (comment.id === commentId) {
-          // If already voted the same way, remove vote
           if (comment.userVote === voteType) {
             return {
               ...comment,
               votes: comment.votes - voteType,
               userVote: 0,
             }
-          }
-          // If voted the opposite way, change vote (counts as 2)
-          else if (comment.userVote !== 0) {
+          } else if (comment.userVote !== 0) {
             return {
               ...comment,
               votes: comment.votes + voteType * 2,
               userVote: voteType,
             }
-          }
-          // If not voted yet, add vote
-          else {
+          } else {
             return {
               ...comment,
               votes: comment.votes + voteType,
@@ -153,24 +97,19 @@ export default function PostDetailPage({ params }: { params: { id: string; postI
             ...comment,
             replies: comment.replies.map((reply) => {
               if (reply.id === replyId) {
-                // If already voted the same way, remove vote
                 if (reply.userVote === voteType) {
                   return {
                     ...reply,
                     votes: reply.votes - voteType,
                     userVote: 0,
                   }
-                }
-                // If voted the opposite way, change vote (counts as 2)
-                else if (reply.userVote !== 0) {
+                } else if (reply.userVote !== 0) {
                   return {
                     ...reply,
                     votes: reply.votes + voteType * 2,
                     userVote: voteType,
                   }
-                }
-                // If not voted yet, add vote
-                else {
+                } else {
                   return {
                     ...reply,
                     votes: reply.votes + voteType,
@@ -187,30 +126,24 @@ export default function PostDetailPage({ params }: { params: { id: string; postI
     )
   }
 
-  const handleAddComment = () => {
-    if (newComment.trim()) {
-      setIsSubmitting(true)
-
-      // Simulate API call
-      setTimeout(() => {
-        const newCommentObj = {
-          id: Math.max(...comments.map((c) => c.id)) + 1,
-          content: newComment,
-          author: {
-            name: "You",
-            avatar: "/placeholder.svg?height=40&width=40",
-            role: "member",
-          },
-          votes: 1,
-          userVote: 1,
-          createdAt: new Date().toISOString(),
-          replies: [],
-        }
-
-        setComments([...comments, newCommentObj])
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return
+    setIsSubmitting(true)
+    try {
+      const res = await fetch(`/api/boards/${boardId}/posts/${postId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: newComment }),
+      })
+      if (res.ok) {
+        const created = await res.json()
+        setComments((prev) => [...prev, created])
         setNewComment("")
-        setIsSubmitting(false)
-      }, 500)
+      }
+    } catch (err) {
+      console.error("Failed to add comment", err)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -256,77 +189,81 @@ export default function PostDetailPage({ params }: { params: { id: string; postI
       <DashboardHeader />
       <main className="flex-1 container py-6">
         <div className="flex items-center gap-2 mb-6">
-          <Button variant="ghost" size="icon" onClick={() => router.push(`/board/${params.id}`)}>
+          <Button variant="ghost" size="icon" onClick={() => router.push(`/board/${boardId}`)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <h1 className="text-2xl font-bold">Post Details</h1>
         </div>
 
-        <Card className="mb-8">
-          <CardContent className="p-6">
-            <div className="flex gap-4">
-              <div className="flex flex-col items-center gap-1 min-w-[60px]">
-                <Button
-                  size="icon"
-                  variant={post.userVote === 1 ? "default" : "ghost"}
-                  className="h-8 w-8 rounded-full"
-                  onClick={() => handleVote(post.id, 1)}
-                >
-                  <ThumbsUp className="h-4 w-4" />
-                </Button>
-                <span className="text-sm font-medium">{post.votes}</span>
-                <Button
-                  size="icon"
-                  variant={post.userVote === -1 ? "default" : "ghost"}
-                  className="h-8 w-8 rounded-full"
-                  onClick={() => handleVote(post.id, -1)}
-                >
-                  <ThumbsDown className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-xl font-bold">{post.title}</h2>
-                  <div className="flex items-center gap-2">
-                    <Badge className={getStatusColor(post.status)}>{post.status.replace("-", " ")}</Badge>
-                    {post.githubIssue?.linked && (
-                      <Badge variant="outline" className="flex items-center gap-1">
-                        <Github className="h-3 w-3" />
-                        <a
-                          href={post.githubIssue.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:underline"
-                        >
-                          #{post.githubIssue.number}
-                        </a>
-                        <span
-                          className={`ml-1 px-1.5 py-0.5 rounded-sm text-xs ${getGitHubStatusColor(post.githubIssue.status)}`}
-                        >
-                          {post.githubIssue.status}
-                        </span>
+        {post && (
+          <Card className="mb-8">
+            <CardContent className="p-6">
+              <div className="flex gap-4">
+                <div className="flex flex-col items-center gap-1 min-w-[60px]">
+                  <Button
+                    size="icon"
+                    variant={post.userVote === 1 ? "default" : "ghost"}
+                    className="h-8 w-8 rounded-full"
+                    onClick={() => handleVote(post.id, 1)}
+                  >
+                    <ThumbsUp className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm font-medium">{post.votes}</span>
+                  <Button
+                    size="icon"
+                    variant={post.userVote === -1 ? "default" : "ghost"}
+                    className="h-8 w-8 rounded-full"
+                    onClick={() => handleVote(post.id, -1)}
+                  >
+                    <ThumbsDown className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between mb-2">
+                    <h2 className="text-xl font-bold">{post.title}</h2>
+                    <div className="flex items-center gap-2">
+                      <Badge className={getStatusColor(post.status)}>{post.status.replace("-", " ")}</Badge>
+                      {post.githubIssue?.linked && (
+                        <Badge variant="outline" className="flex items-center gap-1">
+                          <Github className="h-3 w-3" />
+                          <a
+                            href={post.githubIssue.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline"
+                          >
+                            #{post.githubIssue.number}
+                          </a>
+                          <span
+                            className={`ml-1 px-1.5 py-0.5 rounded-sm text-xs ${getGitHubStatusColor(
+                              post.githubIssue.status,
+                            )}`}
+                          >
+                            {post.githubIssue.status}
+                          </span>
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-gray-500 dark:text-gray-400 mb-4">{post.description}</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-6 w-6">
+                        <AvatarImage src={post.author.avatar || "/placeholder.svg"} alt={post.author.name} />
+                        <AvatarFallback>{post.author.name.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">{post.author.name}</span>
+                      <Badge variant="outline" className="text-xs capitalize">
+                        {post.author.role}
                       </Badge>
-                    )}
+                    </div>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">{formatDate(post.createdAt)}</span>
                   </div>
-                </div>
-                <p className="text-gray-500 dark:text-gray-400 mb-4">{post.description}</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Avatar className="h-6 w-6">
-                      <AvatarImage src={post.author.avatar || "/placeholder.svg"} alt={post.author.name} />
-                      <AvatarFallback>{post.author.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">{post.author.name}</span>
-                    <Badge variant="outline" className="text-xs capitalize">
-                      {post.author.role}
-                    </Badge>
-                  </div>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{formatDate(post.createdAt)}</span>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
@@ -393,9 +330,9 @@ export default function PostDetailPage({ params }: { params: { id: string; postI
                       </div>
                       <p className="mb-4">{comment.content}</p>
 
-                      {comment.replies.length > 0 && (
+                      {(comment.replies?.length ?? 0) > 0 && (
                         <div className="mt-4 pl-4 border-l-2 border-gray-200 dark:border-gray-700 space-y-4">
-                          {comment.replies.map((reply) => (
+                          {(comment.replies ?? []).map((reply) => (
                             <div key={reply.id} className="flex gap-4">
                               <div className="flex flex-col items-center gap-1 min-w-[60px]">
                                 <Button

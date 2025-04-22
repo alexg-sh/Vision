@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
   Dialog,
@@ -33,7 +33,8 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Separator } from "@/components/ui/separator"; // Correct import for Separator
+import { Separator } from "@/components/ui/separator"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   MessageSquare,
   Plus,
@@ -53,179 +54,226 @@ import {
   Loader2,
 } from "lucide-react"
 import DashboardHeader from "@/components/dashboard-header"
-import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-// Import the types defined in page.tsx
-import type { PostWithClientData, ClientBoardData, PollOption } from './page';
-
-// --- Component Props ---
+import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
+import type { PostWithClientData, ClientBoardData, PollOption } from "./page"
+import BulkActionsToolbar from "@/components/bulk-actions-toolbar"
 
 interface BoardClientProps {
-  board: ClientBoardData; // Use the simplified, serializable board type
-  initialPosts: PostWithClientData[];
-  userRole: 'guest' | 'member' | 'moderator' | 'admin' | 'creator';
+  board: ClientBoardData
+  initialPosts: PostWithClientData[]
+  userRole: "guest" | "member" | "moderator" | "admin" | "creator"
 }
 
-// --- Helper Functions (if any) ---
-
-// Placeholder for getting current user ID (replace with actual implementation)
 const getCurrentUserId = (): string | null => {
-  // Example using useSession hook (if available in this component's context)
-  // const { data: session } = useSession();
-  // return session?.user?.id || null;
-  return "temp_user_id"; // Placeholder
-};
-
+  return "temp_user_id"
+}
 
 export default function BoardClient({ board, initialPosts, userRole }: BoardClientProps) {
   const router = useRouter()
   const { toast } = useToast()
   const [posts, setPosts] = useState<PostWithClientData[]>(initialPosts)
-  const [selectedPost, setSelectedPost] = useState<PostWithClientData | null>(null)
-  const [isPostDialogOpen, setIsPostDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [postToDelete, setPostToDelete] = useState<PostWithClientData | null>(null)
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState("all") // 'all', 'popular', 'newest'
-  const currentUserId = getCurrentUserId(); // Get current user ID
+  const [activeTab, setActiveTab] = useState("all")
+  const currentUserId = getCurrentUserId()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [newPostTitle, setNewPostTitle] = useState("")
   const [newPostContent, setNewPostContent] = useState("")
   const [isCreatingPost, setIsCreatingPost] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [selectedPostIds, setSelectedPostIds] = useState<Set<string>>(new Set())
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false)
 
-  // --- Permissions ---
-  const canCreatePost = true; // All users can post
-  const canManageBoard = userRole === 'admin' || userRole === 'moderator' || userRole === 'creator'; // Owner/controller also has full perms
-  const canDeletePost = (postAuthorId: string) => userRole === 'admin' || userRole === 'moderator' || (currentUserId !== null && postAuthorId === currentUserId);
+  const canCreatePost = true
+  const canManageBoard = userRole === "admin" || userRole === "moderator" || userRole === "creator"
+  const canDeletePost = (postAuthorId: string) =>
+    userRole === "admin" || userRole === "moderator" || (currentUserId !== null && postAuthorId === currentUserId)
 
-
-  // --- Event Handlers ---
   const handleVote = (postId: string, voteType: 1 | -1) => {
     setPosts(
       posts.map((p) => {
         if (p.id === postId) {
-          const currentVote = p.userVote || 0;
-          // Toggle logic: If clicking the same vote type, reset to 0. Otherwise, set to new vote type.
-          const newUserVote = currentVote === voteType ? 0 : voteType;
-          return { ...p, userVote: newUserVote };
+          const currentVote = p.userVote || 0
+          const newUserVote = currentVote === voteType ? 0 : voteType
+          return { ...p, userVote: newUserVote }
         }
-        return p;
+        return p
       })
-    );
-    // TODO: API call to update vote count
-  };
+    )
+  }
 
   const handlePollVote = (postId: string, optionId: number) => {
     setPosts(
       posts.map((p) => {
         if (p.id === postId) {
-          // Allow changing vote, but not deselecting for now
-          return { ...p, userPollVote: optionId };
+          return { ...p, userPollVote: optionId }
         }
-        return p;
+        return p
       })
-    );
-    // TODO: API call to update poll vote
-  };
-
-  const handleOpenPostDialog = (post: PostWithClientData) => {
-    setSelectedPost(post)
-    setIsPostDialogOpen(true)
+    )
   }
 
   const handleDeletePost = (post: PostWithClientData) => {
-    setSelectedPost(post)
+    setPostToDelete(post)
     setIsDeleteDialogOpen(true)
   }
 
-  const confirmDeletePost = () => {
-    if (!selectedPost) return;
-    // TODO: API call to delete post
-    setPosts(posts.filter((p) => p.id !== selectedPost.id))
-    setIsDeleteDialogOpen(false)
-    setSelectedPost(null)
+  const confirmDeletePost = async () => {
+    if (!postToDelete) return
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      setPosts(posts.filter((p) => p.id !== postToDelete.id))
+      toast({ title: "Post deleted" })
+    } catch (error) {
+      console.error("Failed to delete post:", error)
+      toast({ variant: "destructive", title: "Error", description: "Could not delete post." })
+    } finally {
+      setIsDeleteDialogOpen(false)
+      setPostToDelete(null)
+    }
   }
 
-  const handleCreatePost = () => {
-    // TODO: Implement post creation logic (likely open a dialog/modal)
-    console.log("Create post clicked");
-  };
+  const handleSelectPost = (postId: string, isSelected: boolean) => {
+    setSelectedPostIds((prev) => {
+      const newSet = new Set(prev)
+      if (isSelected) {
+        newSet.add(postId)
+      } else {
+        newSet.delete(postId)
+      }
+      return newSet
+    })
+  }
 
-  // Event handler for submitting a new post
+  const handleSelectAll = (isSelected: boolean) => {
+    if (isSelected) {
+      setSelectedPostIds(new Set(displayedPosts.map((p) => p.id)))
+    } else {
+      setSelectedPostIds(new Set())
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedPostIds.size === 0) return
+    setIsBulkDeleting(true)
+    try {
+      console.log("Deleting posts:", Array.from(selectedPostIds))
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+      setPosts(posts.filter((p) => !selectedPostIds.has(p.id)))
+      setSelectedPostIds(new Set())
+      toast({ title: `${selectedPostIds.size} post(s) deleted` })
+    } catch (error) {
+      console.error("Failed to bulk delete posts:", error)
+      toast({ variant: "destructive", title: "Error", description: "Could not delete selected posts." })
+    } finally {
+      setIsBulkDeleting(false)
+    }
+  }
+
   const submitNewPost = async () => {
     if (!newPostTitle.trim()) {
-      setCreateError('Title is required');
-      return;
+      setCreateError("Title is required")
+      return
     }
-    setIsCreatingPost(true);
-    setCreateError(null);
+    setIsCreatingPost(true)
+    setCreateError(null)
     try {
       const res = await fetch(`/api/boards/${board.id}/posts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: newPostTitle, content: newPostContent })
-      });
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newPostTitle, content: newPostContent }),
+      })
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to create post');
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.message || "Failed to create post")
       }
-      const created = await res.json();
-      setPosts([created, ...posts]);
-      setIsCreateDialogOpen(false);
-      setNewPostTitle('');
-      setNewPostContent('');
-      toast({ title: 'Post created' });
+      const created = await res.json()
+      setPosts([created, ...posts])
+      setIsCreateDialogOpen(false)
+      setNewPostTitle("")
+      setNewPostContent("")
+      toast({ title: "Post created" })
     } catch (err: any) {
-      setCreateError(err.message || 'Unexpected error');
-      toast({ variant: 'destructive', title: 'Error', description: err.message });
+      setCreateError(err.message || "Unexpected error")
+      toast({ variant: "destructive", title: "Error", description: err.message })
     } finally {
-      setIsCreatingPost(false);
+      setIsCreatingPost(false)
     }
   }
 
-  // --- Rendering Logic ---
+  const displayedPosts = useMemo(() => {
+    let filtered = [...posts]
+    if (activeTab === "popular") {
+    } else if (activeTab === "newest") {
+      filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    }
+    return filtered
+  }, [posts, activeTab])
+
   const renderPostCard = (post: PostWithClientData) => (
-    <Card key={post.id} className="mb-4 overflow-hidden">
+    <Card key={post.id} className="mb-4 overflow-hidden relative">
+      {canManageBoard && (
+        <div className="absolute top-2 left-2 z-10">
+          <Checkbox
+            checked={selectedPostIds.has(post.id)}
+            onCheckedChange={(checked) => handleSelectPost(post.id, !!checked)}
+            aria-label={`Select post ${post.title}`}
+            className="bg-background border-border"
+          />
+        </div>
+      )}
       <CardContent className="p-0">
         <div className="flex">
-          {/* Vote Section */}
-          <div className="flex flex-col items-center justify-start bg-muted/50 p-2 space-y-1 w-12">
+          <div
+            className={cn(
+              "flex flex-col items-center justify-start bg-muted/50 p-2 space-y-1 w-12",
+              canManageBoard && "pl-10"
+            )}
+          >
             <Button
               variant={post.userVote === 1 ? "default" : "ghost"}
               size="sm"
               className="h-8 w-8 p-0"
-              onClick={() => handleVote(post.id, 1)}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleVote(post.id, 1)
+              }}
             >
               <ThumbsUp className="h-4 w-4" />
             </Button>
-            <span className="text-sm font-medium">
-              {/* Placeholder for vote count */}
-              { (post as any).votes || 0 }
-            </span>
+            <span className="text-sm font-medium">{(post as any).votes || 0}</span>
             <Button
               variant={post.userVote === -1 ? "destructive" : "ghost"}
               size="sm"
               className="h-8 w-8 p-0"
-              onClick={() => handleVote(post.id, -1)}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleVote(post.id, -1)
+              }}
             >
               <ThumbsDown className="h-4 w-4" />
             </Button>
           </div>
-
-          {/* Main Content */}
-          <div className="flex-1 p-4">
+          <div
+            className="flex-1 p-4 cursor-pointer"
+            onClick={() => router.push(`/board/${board.id}/post/${post.id}`)}
+          >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                 <Avatar className="h-6 w-6">
-                  <AvatarImage src={(post.author as any).image || "/placeholder-user.jpg"} alt={post.author.name || "User"} />
-                  <AvatarFallback>{post.author.name?.charAt(0) || 'U'}</AvatarFallback>
+                  <AvatarImage
+                    src={(post.author as any).image || "/placeholder-user.jpg"}
+                    alt={post.author.name || "User"}
+                  />
+                  <AvatarFallback>{post.author.name?.charAt(0) || "U"}</AvatarFallback>
                 </Avatar>
                 <span>{post.author.name || "Anonymous"}</span>
                 <span>·</span>
-                {/* Placeholder for time ago */}
                 <span>{new Date(post.createdAt).toLocaleDateString()}</span>
                 {post.githubIssue?.linked && (
                   <>
@@ -237,15 +285,18 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
                   </>
                 )}
               </div>
-              {/* Post Actions Menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {/* Add actions like Edit, Hide, Report */}
+                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                   {canDeletePost(post.authorId) && (
                     <DropdownMenuItem onClick={() => handleDeletePost(post)} className="text-destructive">
                       <Trash2 className="mr-2 h-4 w-4" />
@@ -255,19 +306,11 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-
-            <h3
-              className="text-lg font-semibold mb-2 cursor-pointer hover:underline"
-              onClick={() => handleOpenPostDialog(post)}
-            >
-              {post.title}
-            </h3>
-
-            {/* Render different content based on post type */}
-            {/* Example: Poll */}
+            <h3 className="text-lg font-semibold mb-2 hover:underline">{post.title}</h3>
             {post.pollOptions && post.pollOptions.length > 0 && (
               <RadioGroup
                 value={post.userPollVote?.toString()}
+                onClick={(e) => e.stopPropagation()}
                 onValueChange={(value) => handlePollVote(post.id, parseInt(value))}
                 className="space-y-2 mb-4"
               >
@@ -277,63 +320,47 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
                     <Label htmlFor={`poll-${post.id}-opt-${option.id}`} className="flex-1 cursor-pointer">
                       {option.text}
                     </Label>
-                    {/* Optionally show vote counts */}
                     <span className="text-sm text-muted-foreground">({option.votes} votes)</span>
                   </div>
                 ))}
               </RadioGroup>
             )}
-
-            {/* Example: Image/Content Snippet */}
             {post.content && !post.pollOptions && (
-              <p className="text-sm text-muted-foreground mb-4 line-clamp-3">
-                {post.content}
-              </p>
+              <p className="text-sm text-muted-foreground mb-4 line-clamp-3">{post.content}</p>
             )}
-
-            {/* Footer Actions */}
             <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-              <Button variant="ghost" size="sm" className="flex items-center gap-1 px-2" onClick={() => handleOpenPostDialog(post)}>
+              <div className="flex items-center gap-1 px-2">
                 <MessageSquare className="h-4 w-4" />
-                {/* Placeholder for comment count */}
-                <span>{ (post as any).comments || 0 } Comments</span>
-              </Button>
-              {/* Add Share, Save buttons etc. */}
+                <span>{(post as any).comments || 0} Comments</span>
+              </div>
             </div>
           </div>
         </div>
       </CardContent>
     </Card>
-  );
-
-  // Filter/Sort posts based on activeTab
-  const displayedPosts = posts // Add filtering/sorting logic here based on activeTab
+  )
 
   return (
     <div className="flex min-h-screen flex-col">
       <DashboardHeader />
       <main className="flex-1 container py-6">
-        {/* Board Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
-            {/* Placeholder for board image */}
             <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
-              {/* Icon based on board type? */}
               <Megaphone className="h-6 w-6 text-muted-foreground" />
             </div>
             <div>
               <h1 className="text-2xl font-bold">{board.name}</h1>
-              <p className="text-muted-foreground">
-                {/* Placeholder for board description */}
-                Welcome to the {board.name} board.
-              </p>
+              <p className="text-muted-foreground">Welcome to the {board.name} board.</p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
             {canCreatePost && (
               <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button><Plus className="mr-2 h-4 w-4" /> Create Post</Button>
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" /> Create Post
+                  </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
@@ -343,11 +370,22 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
                       <Label htmlFor="new-post-title">Title *</Label>
-                      <Input id="new-post-title" value={newPostTitle} onChange={e => setNewPostTitle(e.target.value)} disabled={isCreatingPost} />
+                      <Input
+                        id="new-post-title"
+                        value={newPostTitle}
+                        onChange={(e) => setNewPostTitle(e.target.value)}
+                        disabled={isCreatingPost}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="new-post-content">Content (Markdown)</Label>
-                      <Textarea id="new-post-content" value={newPostContent} onChange={e => setNewPostContent(e.target.value)} disabled={isCreatingPost} rows={6} />
+                      <Textarea
+                        id="new-post-content"
+                        value={newPostContent}
+                        onChange={(e) => setNewPostContent(e.target.value)}
+                        disabled={isCreatingPost}
+                        rows={6}
+                      />
                     </div>
                     {newPostContent && (
                       <div className="border p-4 rounded-md">
@@ -357,10 +395,16 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
                     {createError && <p className="text-sm text-destructive">Error: {createError}</p>}
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} disabled={isCreatingPost}>Cancel</Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsCreateDialogOpen(false)}
+                      disabled={isCreatingPost}
+                    >
+                      Cancel
+                    </Button>
                     <Button onClick={submitNewPost} disabled={isCreatingPost}>
                       {isCreatingPost ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                      {isCreatingPost ? 'Posting...' : 'Post'}
+                      {isCreatingPost ? "Posting..." : "Post"}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -368,7 +412,6 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
             )}
             {canManageBoard && (
               <>
-                {/* Invite dialog stays unchanged */}
                 <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
                   <DialogTrigger asChild>
                     <Button variant="outline">
@@ -378,44 +421,48 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>Invite Members</DialogTitle>
-                      <DialogDescription>
-                        Invite new members to collaborate on this board.
-                      </DialogDescription>
+                      <DialogDescription>Invite new members to collaborate on this board.</DialogDescription>
                     </DialogHeader>
-                    {/* Invite Form */}
                     <div className="space-y-4 py-4">
                       <div className="space-y-2">
                         <Label htmlFor="invite-email">Email Address</Label>
                         <Input id="invite-email" type="email" placeholder="member@example.com" />
                       </div>
-                      {/* Add role selection if applicable */}
                     </div>
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsInviteDialogOpen(false)}>Cancel</Button>
+                      <Button variant="outline" onClick={() => setIsInviteDialogOpen(false)}>
+                        Cancel
+                      </Button>
                       <Button>Send Invite</Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
-                {/* Link to dedicated settings page */}
-                <Button variant="outline" size="icon" onClick={() => router.push(`/board/${board.id}/settings`)}>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => router.push(`/board/${board.id}/settings`)}
+                >
                   <Settings className="h-4 w-4" />
                 </Button>
               </>
             )}
           </div>
         </div>
-
-        {/* Tabs for Filtering/Sorting */}
+        {canManageBoard && selectedPostIds.size > 0 && (
+          <BulkActionsToolbar
+            selectedCount={selectedPostIds.size}
+            onClearSelection={() => setSelectedPostIds(new Set())}
+            onDelete={handleBulkDelete}
+            isDeleting={isBulkDeleting}
+          />
+        )}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
           <TabsList>
             <TabsTrigger value="all">All Posts</TabsTrigger>
             <TabsTrigger value="popular">Popular</TabsTrigger>
             <TabsTrigger value="newest">Newest</TabsTrigger>
-            {/* Add more tabs like 'Bugs', 'Features' if using categories */}
           </TabsList>
         </Tabs>
-
-        {/* Posts List */}
         <div>
           {displayedPosts.length > 0 ? (
             displayedPosts.map(renderPostCard)
@@ -426,82 +473,24 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
             </div>
           )}
         </div>
-
-        {/* Post Detail Dialog */}
-        <Dialog open={isPostDialogOpen} onOpenChange={setIsPostDialogOpen}>
-          <DialogContent className="sm:max-w-[600px]">
-            {selectedPost && (
-              <>
-                <DialogHeader>
-                  <DialogTitle>{selectedPost.title}</DialogTitle>
-                  <DialogDescription>
-                    Posted by {selectedPost.author.name || "Anonymous"} {/* Time ago */}
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="py-4 space-y-4 max-h-[60vh] overflow-y-auto">
-                  {/* Full Post Content */}
-                  <p>{selectedPost.content}</p>
-
-                  {/* Poll (if applicable) */}
-                  {selectedPost.pollOptions && selectedPost.pollOptions.length > 0 && (
-                    <RadioGroup
-                      value={selectedPost.userPollVote?.toString()}
-                      onValueChange={(value) => handlePollVote(selectedPost.id, parseInt(value))}
-                      className="space-y-2 mb-4"
-                    >
-                      {selectedPost.pollOptions.map((option: PollOption) => (
-                        <div key={option.id} className="flex items-center space-x-2">
-                          <RadioGroupItem value={option.id.toString()} id={`dialog-poll-${selectedPost.id}-opt-${option.id}`} />
-                          <Label htmlFor={`dialog-poll-${selectedPost.id}-opt-${option.id}`} className="flex-1 cursor-pointer">
-                            {option.text}
-                          </Label>
-                          <span className="text-sm text-muted-foreground">({option.votes} votes)</span>
-                        </div>
-                      ))}
-                    </RadioGroup>
-                  )}
-
-                  {/* GitHub Link (if applicable) */}
-                  {selectedPost.githubIssue?.linked && (
-                    <div className="flex items-center space-x-2">
-                      <Github className="h-4 w-4" />
-                      <Link href={`https://github.com/your-repo/issues/${selectedPost.githubIssue.number}`} target="_blank" className="text-sm hover:underline">
-                        View on GitHub #{selectedPost.githubIssue.number}
-                      </Link>
-                      <Badge variant="secondary">{selectedPost.githubIssue.status}</Badge>
-                    </div>
-                  )}
-
-                  <Separator />
-
-                  {/* Comments Section Placeholder */}
-                  <h4 className="font-semibold">Comments</h4>
-                  <div className="text-sm text-muted-foreground">
-                    Comments section coming soon...
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsPostDialogOpen(false)}>Close</Button>
-                  {/* Add comment input/button */}
-                </DialogFooter>
-              </>
-            )}
-          </DialogContent>
-        </Dialog>
-
-        {/* Delete Confirmation Dialog */}
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Are you sure?</AlertDialogTitle>
               <AlertDialogDescription>
                 This action cannot be undone. This will permanently delete the post
-                &quot;{selectedPost?.title}&quot;.
+                &quot;{postToDelete?.title}&quot;.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDeletePost} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              <AlertDialogAction
+                onClick={confirmDeletePost}
+                className={cn(
+                  buttonVariants({ variant: "destructive" }),
+                  "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                )}
+              >
                 Delete
               </AlertDialogAction>
             </AlertDialogFooter>
