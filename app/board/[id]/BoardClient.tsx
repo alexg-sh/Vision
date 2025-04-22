@@ -50,10 +50,13 @@ import {
   BarChart3,
   Megaphone,
   PieChart,
+  Loader2,
 } from "lucide-react"
 import DashboardHeader from "@/components/dashboard-header"
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 // Import the types defined in page.tsx
 import type { PostWithClientData, ClientBoardData, PollOption } from './page';
 
@@ -78,6 +81,7 @@ const getCurrentUserId = (): string | null => {
 
 export default function BoardClient({ board, initialPosts, userRole }: BoardClientProps) {
   const router = useRouter()
+  const { toast } = useToast()
   const [posts, setPosts] = useState<PostWithClientData[]>(initialPosts)
   const [selectedPost, setSelectedPost] = useState<PostWithClientData | null>(null)
   const [isPostDialogOpen, setIsPostDialogOpen] = useState(false)
@@ -86,6 +90,11 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState("all") // 'all', 'popular', 'newest'
   const currentUserId = getCurrentUserId(); // Get current user ID
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [newPostTitle, setNewPostTitle] = useState("")
+  const [newPostContent, setNewPostContent] = useState("")
+  const [isCreatingPost, setIsCreatingPost] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
 
   // --- Permissions ---
   const canCreatePost = true; // All users can post
@@ -144,6 +153,38 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
     // TODO: Implement post creation logic (likely open a dialog/modal)
     console.log("Create post clicked");
   };
+
+  // Event handler for submitting a new post
+  const submitNewPost = async () => {
+    if (!newPostTitle.trim()) {
+      setCreateError('Title is required');
+      return;
+    }
+    setIsCreatingPost(true);
+    setCreateError(null);
+    try {
+      const res = await fetch(`/api/boards/${board.id}/posts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newPostTitle, content: newPostContent })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to create post');
+      }
+      const created = await res.json();
+      setPosts([created, ...posts]);
+      setIsCreateDialogOpen(false);
+      setNewPostTitle('');
+      setNewPostContent('');
+      toast({ title: 'Post created' });
+    } catch (err: any) {
+      setCreateError(err.message || 'Unexpected error');
+      toast({ variant: 'destructive', title: 'Error', description: err.message });
+    } finally {
+      setIsCreatingPost(false);
+    }
+  }
 
   // --- Rendering Logic ---
   const renderPostCard = (post: PostWithClientData) => (
@@ -290,9 +331,40 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
           </div>
           <div className="flex items-center space-x-2">
             {canCreatePost && (
-              <Button onClick={handleCreatePost}>
-                <Plus className="mr-2 h-4 w-4" /> Create Post
-              </Button>
+              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button><Plus className="mr-2 h-4 w-4" /> Create Post</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>New Post</DialogTitle>
+                    <DialogDescription>Use markdown to format content, include image URLs.</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="new-post-title">Title *</Label>
+                      <Input id="new-post-title" value={newPostTitle} onChange={e => setNewPostTitle(e.target.value)} disabled={isCreatingPost} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="new-post-content">Content (Markdown)</Label>
+                      <Textarea id="new-post-content" value={newPostContent} onChange={e => setNewPostContent(e.target.value)} disabled={isCreatingPost} rows={6} />
+                    </div>
+                    {newPostContent && (
+                      <div className="border p-4 rounded-md">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{newPostContent}</ReactMarkdown>
+                      </div>
+                    )}
+                    {createError && <p className="text-sm text-destructive">Error: {createError}</p>}
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} disabled={isCreatingPost}>Cancel</Button>
+                    <Button onClick={submitNewPost} disabled={isCreatingPost}>
+                      {isCreatingPost ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      {isCreatingPost ? 'Posting...' : 'Post'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             )}
             {canManageBoard && (
               <>

@@ -29,6 +29,16 @@ const nextConfig = {
         chunkFilename: 'static/css/[contenthash].css',
       }));
 
+      // Add rule to process CSS files with MiniCssExtractPlugin.loader
+      config.module.rules.push({
+        test: /\.css$/i,
+        use: [
+          MiniCssExtractPlugin.loader,
+          'css-loader',
+          'postcss-loader',
+        ],
+      });
+
       // Mark server-only modules as external for the client bundle
       config.externals = [
         ...(config.externals || []),
