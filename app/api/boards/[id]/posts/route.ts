@@ -27,16 +27,15 @@ export async function GET(req: NextRequest, { params: paramsPromise }: RouteCont
   const session = await getServerSession(authOptions)
   const userId = session?.user?.id
 
-  let orderBy: any = { createdAt: 'desc' }; // Default: newest
+  let orderBy: any;
 
   // Determine sorting order based on sortBy query parameter
   if (sortBy === 'popular') {
-    // Order by the count of postVotes relation
-    orderBy = {
-      postVotes: {
-        _count: 'desc'
-      }
-    };
+    // Order by the votes field which contains the actual vote balance
+    orderBy = { votes: 'desc' };
+  } else {
+    // Default: order by newest
+    orderBy = { createdAt: 'desc' };
   }
 
   try {
@@ -47,7 +46,7 @@ export async function GET(req: NextRequest, { params: paramsPromise }: RouteCont
         author: { select: { id: true, name: true, image: true } },
         _count: {
           select: {
-            postVotes: true, // Count all votes for the post
+            postVotes: true, // Total count of votes (regardless of value)
             comments: true,  // Count comments
           }
         },
@@ -56,10 +55,10 @@ export async function GET(req: NextRequest, { params: paramsPromise }: RouteCont
           where: { userId: userId }
         } : false,
       }
-    })
+    });
 
     // Map posts to include votes count and userVote status
-    const formattedPosts = posts.map((post: PostWithDetails) => { // Add explicit type annotation for 'post'
+    const formattedPosts = posts.map((post: PostWithDetails) => {
       // Access postVotes safely, knowing it might be undefined if user is not logged in
       const userVoteRecord = post.postVotes;
       const userVote = userVoteRecord && userVoteRecord.length > 0 ? userVoteRecord[0].voteType : null;
@@ -67,12 +66,13 @@ export async function GET(req: NextRequest, { params: paramsPromise }: RouteCont
       return {
         id: post.id,
         title: post.title,
-        content: post.content, // Assuming content is needed for previews
+        content: post.content,
         createdAt: post.createdAt,
         authorId: post.authorId,
         author: post.author,
-        votes: post._count.postVotes, // Use the count from _count
-        comments: post._count.comments, // Include comment count
+        votes: post.votes, // Use the actual vote balance from the Post model
+        commentCount: post._count.comments,
+        voteCount: post._count.postVotes, // Total number of votes cast (for analytics/display)
         userVote: userVote, // Include the user's vote status (1, -1, or null)
       };
     });
