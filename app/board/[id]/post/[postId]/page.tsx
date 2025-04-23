@@ -36,94 +36,74 @@ export default function PostDetailPage({ params: paramsPromise }: { params: Prom
     fetchData()
   }, [boardId, postId])
 
-  const handleVote = (postId: number, voteType: 1 | -1) => {
-    setPost((post) => {
-      if (post.userVote === voteType) {
-        return {
-          ...post,
-          votes: post.votes - voteType,
-          userVote: 0,
-        }
-      } else if (post.userVote !== 0) {
-        return {
-          ...post,
-          votes: post.votes + voteType * 2,
-          userVote: voteType,
-        }
+  const handleVote = async (voteType: 1 | -1) => {
+    try {
+      const res = await fetch(`/api/boards/${boardId}/posts/${postId}/vote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ voteType }),
+      })
+      if (res.ok) {
+        const { votes, userVote } = await res.json()
+        setPost((post) => post && { ...post, votes, userVote })
       } else {
-        return {
-          ...post,
-          votes: post.votes + voteType,
-          userVote: voteType,
-        }
+        console.error("Post vote failed:", res.status, await res.text())
       }
-    })
+    } catch (err) {
+      console.error("Vote error", err)
+    }
   }
 
-  const handleCommentVote = (commentId: number, voteType: 1 | -1) => {
-    setComments((comments) =>
-      comments.map((comment) => {
-        if (comment.id === commentId) {
-          if (comment.userVote === voteType) {
-            return {
-              ...comment,
-              votes: comment.votes - voteType,
-              userVote: 0,
-            }
-          } else if (comment.userVote !== 0) {
-            return {
-              ...comment,
-              votes: comment.votes + voteType * 2,
-              userVote: voteType,
-            }
-          } else {
-            return {
-              ...comment,
-              votes: comment.votes + voteType,
-              userVote: voteType,
-            }
-          }
-        }
-        return comment
-      }),
-    )
+  const handleCommentVote = async (commentId: string, voteType: 1 | -1) => {
+    try {
+      const res = await fetch(`/api/boards/${boardId}/posts/${postId}/comments/${commentId}/vote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ voteType }),
+      })
+      if (res.ok) {
+        const { votes, userVote } = await res.json()
+        setComments((comments) =>
+          comments.map((comment) => (comment.id === commentId ? { ...comment, votes, userVote } : comment)),
+        )
+      } else {
+        console.error("Comment vote failed:", res.status, await res.text())
+      }
+    } catch (err) {
+      console.error("Comment vote error", err)
+    }
   }
 
-  const handleReplyVote = (commentId: number, replyId: number, voteType: 1 | -1) => {
-    setComments((comments) =>
-      comments.map((comment) => {
-        if (comment.id === commentId) {
-          return {
-            ...comment,
-            replies: comment.replies.map((reply) => {
-              if (reply.id === replyId) {
-                if (reply.userVote === voteType) {
-                  return {
-                    ...reply,
-                    votes: reply.votes - voteType,
-                    userVote: 0,
-                  }
-                } else if (reply.userVote !== 0) {
-                  return {
-                    ...reply,
-                    votes: reply.votes + voteType * 2,
-                    userVote: voteType,
-                  }
-                } else {
-                  return {
-                    ...reply,
-                    votes: reply.votes + voteType,
-                    userVote: voteType,
-                  }
+  const handleReplyVote = async (commentId: string, replyId: string, voteType: 1 | -1) => {
+    try {
+      const res = await fetch(`/api/boards/${boardId}/posts/${postId}/comments/${replyId}/vote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ voteType }),
+      })
+      if (res.ok) {
+        const { votes, userVote } = await res.json()
+        setComments((comments) =>
+          comments.map((comment) =>
+            comment.id === commentId
+              ? {
+                  ...comment,
+                  replies: comment.replies.map((reply) =>
+                    reply.id === replyId ? { ...reply, votes, userVote } : reply,
+                  ),
                 }
-              }
-              return reply
-            }),
-          }
-        }
-        return comment
-      }),
-    )
+              : comment,
+          ),
+        )
+      } else {
+        console.error("Reply vote failed:", res.status, await res.text())
+      }
+    } catch (err) {
+      console.error("Reply vote error", err)
+    }
   }
 
   const handleAddComment = async () => {
@@ -133,13 +113,16 @@ export default function PostDetailPage({ params: paramsPromise }: { params: Prom
       const res = await fetch(`/api/boards/${boardId}/posts/${postId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({ content: newComment }),
       })
-      if (res.ok) {
-        const created = await res.json()
-        setComments((prev) => [...prev, created])
-        setNewComment("")
+      if (!res.ok) {
+        console.error("Add comment failed:", res.status, await res.text())
+        return
       }
+      const created = await res.json()
+      setComments((prev) => [...prev, created])
+      setNewComment("")
     } catch (err) {
       console.error("Failed to add comment", err)
     } finally {
@@ -204,7 +187,7 @@ export default function PostDetailPage({ params: paramsPromise }: { params: Prom
                     size="icon"
                     variant={post.userVote === 1 ? "default" : "ghost"}
                     className="h-8 w-8 rounded-full"
-                    onClick={() => handleVote(post.id, 1)}
+                    onClick={() => handleVote(1)}
                   >
                     <ThumbsUp className="h-4 w-4" />
                   </Button>
@@ -213,7 +196,7 @@ export default function PostDetailPage({ params: paramsPromise }: { params: Prom
                     size="icon"
                     variant={post.userVote === -1 ? "default" : "ghost"}
                     className="h-8 w-8 rounded-full"
-                    onClick={() => handleVote(post.id, -1)}
+                    onClick={() => handleVote(-1)}
                   >
                     <ThumbsDown className="h-4 w-4" />
                   </Button>

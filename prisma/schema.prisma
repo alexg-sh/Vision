@@ -24,9 +24,7 @@ model User {
   sessions             Session[] // Added for NextAuth
   organizations        OrganizationMember[]
   posts                Post[]
-  comments             Comment[]
-  postVotes            PostVote[]   // add inverse relation for post votes
-  commentVotes         CommentVote[]// add inverse relation for comment votes
+  comments             Comment[] // Add this line
   createdBoards        Board[]              @relation("CreatedBoards") // Add this line for the inverse relation
   bans                 OrganizationBan[] // Added inverse relation for bans
   sentInvites          Invite[]             @relation("SentInvites")
@@ -37,6 +35,8 @@ model User {
   auditLogs            AuditLog[] // Add this inverse relation for AuditLog
   bannedOrgActions     OrganizationBan[]    @relation("BannedByUsers") // Relation for bans issued by this user
   bannedBoardActions   BoardMember[]        @relation("BannedBoardUsers") // Relation for board bans issued by this user
+  postVotes            PostVote[] // Added relation for PostVote
+  commentVotes         CommentVote[] // Added relation for CommentVote
   // Add other fields as needed, e.g., passwordHash if using credentials
 }
 
@@ -188,9 +188,9 @@ model Post {
   board         Board          @relation(fields: [boardId], references: [id], onDelete: Cascade)
   authorId      String
   author        User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  votes         Int            @default(0)
-  postVotes     PostVote[]     // relation to vote records
+  votes         Int            @default(0)  // Added votes field
   comments      Comment[]
+  postVotes     PostVote[] // Added relation for PostVote
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   notifications Notification[]
@@ -200,42 +200,44 @@ model Post {
 }
 
 model Comment {
-  id            String         @id @default(cuid())
-  postId        String
-  post          Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
-  authorId      String
-  author        User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  content       String
-  votes         Int            @default(0)
-  commentVotes  CommentVote[]  // relation to comment votes
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id         String   @id @default(cuid())
+  postId     String
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content    String
+  votes      Int      @default(0)
+  commentVotes CommentVote[] // Added relation for CommentVote
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 model PostVote {
   id        String   @id @default(cuid())
-  postId    String
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  voteType  Int
+  postId    String
+  voteType  Int      // 1 for like, -1 for dislike
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  @@unique([postId, userId])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([postId])
 }
 
 model CommentVote {
-  id         String   @id @default(cuid())
-  commentId  String
-  comment    Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  voteType   Int
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  userId    String
+  commentId String
+  voteType  Int      // 1 for like, -1 for dislike
+  createdAt DateTime @default(now())
 
-  @@unique([commentId, userId])
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+  @@index([commentId])
 }
 
 // Example Audit Log model

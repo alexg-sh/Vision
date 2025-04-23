@@ -3,37 +3,35 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { prisma } from '@/lib/prisma'
 
-interface RouteContext {
-  params: Promise<{ id: string; postId: string; commentId: string }>
-}
-
-export async function POST(_req: Request, { params: paramsPromise }: RouteContext) {
+export async function POST(_req: Request, { params: paramsPromise }: { params: Promise<{ id: string; postId: string; commentId: string }> }) {
+  const { commentId } = await paramsPromise
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
-  const { commentId } = await paramsPromise
-  const { voteType } = await _req.json() as { voteType: 1 | -1 }
   const userId = session.user.id
+  const { voteType } = await _req.json()
+  if (![1, -1].includes(voteType)) return NextResponse.json({ message: 'Invalid voteType' }, { status: 400 })
 
-  // Find existing vote
-  const existing = await prisma.commentVote.findUnique({
-    where: { commentId_userId: { commentId, userId } }
-  })
-
-  let newUserVote = voteType
-  if (existing) {
-    if (existing.voteType === voteType) {
-      await prisma.commentVote.delete({ where: { commentId_userId: { commentId, userId } } })
-      newUserVote = 0
+  return await prisma.$transaction(async (tx) => {
+    const existing = await tx.commentVote.findUnique({ where: { userId_commentId: { userId, commentId } } })
+    let newType = voteType
+    let delta = voteType
+    if (existing) {
+      if (existing.voteType === voteType) {
+        // Remove vote
+        await tx.commentVote.delete({ where: { userId_commentId: { userId, commentId } } })
+        newType = 0
+        delta = -voteType
+      } else {
+        // Change vote
+        await tx.commentVote.update({ where: { userId_commentId: { userId, commentId } }, data: { voteType } })
+        newType = voteType
+        delta = voteType * 2
+      }
     } else {
-      await prisma.commentVote.update({ where: { commentId_userId: { commentId, userId } }, data: { voteType } })
+      // Add new vote
+      await tx.commentVote.create({ data: { userId, commentId, voteType } })
     }
-  } else {
-    await prisma.commentVote.create({ data: { commentId, userId, voteType } })
-  }
-
-  // Recalculate aggregate
-  const agg = await prisma.commentVote.aggregate({ where: { commentId }, _sum: { voteType: true } })
-  const total = agg._sum.voteType ?? 0
-
-  return NextResponse.json({ votes: total, userVote: newUserVote })
+    const updated = await tx.comment.update({ where: { id: commentId }, data: { votes: { increment: delta } }, select: { votes: true } })
+    return NextResponse.json({ votes: updated.votes, userVote: newType })
+  })
 }

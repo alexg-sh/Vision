@@ -94,17 +94,30 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
   const canDeletePost = (postAuthorId: string) =>
     userRole === "admin" || userRole === "moderator" || (currentUserId !== null && postAuthorId === currentUserId)
 
-  const handleVote = (postId: string, voteType: 1 | -1) => {
-    setPosts(
-      posts.map((p) => {
-        if (p.id === postId) {
-          const currentVote = p.userVote || 0
-          const newUserVote = currentVote === voteType ? 0 : voteType
-          return { ...p, userVote: newUserVote }
-        }
-        return p
-      })
-    )
+  const handleVote = async (postId: string, voteType: 1 | -1) => {
+    try {
+      const res = await fetch(
+        `/api/boards/${board.id}/posts/${postId}/vote`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ voteType }),
+        },
+      )
+      if (res.ok) {
+        const { votes, userVote } = await res.json()
+        setPosts((posts) =>
+          posts.map((p) =>
+            p.id === postId ? { ...p, votes, userVote } : p
+          )
+        )
+      } else {
+        console.error('Post vote failed:', res.status, await res.text())
+      }
+    } catch (err) {
+      console.error('Post vote error', err)
+    }
   }
 
   const handlePollVote = (postId: string, optionId: number) => {
