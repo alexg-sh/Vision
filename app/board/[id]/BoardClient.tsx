@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -88,6 +88,7 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
   const [createError, setCreateError] = useState<string | null>(null)
   const [selectedPostIds, setSelectedPostIds] = useState<Set<string>>(new Set())
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
   const canCreatePost = true
   const canManageBoard = userRole === "admin" || userRole === "moderator" || userRole === "creator"
@@ -219,14 +220,46 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
     }
   }
 
-  const displayedPosts = useMemo(() => {
-    let filtered = [...posts]
-    if (activeTab === "popular") {
-    } else if (activeTab === "newest") {
-      filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  const fetchPosts = async (sortBy?: string) => {
+    setIsLoading(true)
+    try {
+      let url = `/api/boards/${board.id}/posts`;
+      if (sortBy && sortBy !== 'all') {
+        url += `?sortBy=${sortBy}`;
+      }
+      
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error('Failed to fetch posts');
+      }
+      
+      const data = await res.json();
+      setPosts(data);
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+      toast({ 
+        variant: "destructive", 
+        title: "Error", 
+        description: "Failed to load posts. Please try again."
+      });
+    } finally {
+      setIsLoading(false);
     }
-    return filtered
-  }, [posts, activeTab])
+  };
+
+  useEffect(() => {
+    if (activeTab === 'popular') {
+      fetchPosts('popular');
+    } else if (activeTab === 'newest') {
+      fetchPosts('newest');
+    } else {
+      fetchPosts();
+    }
+  }, [activeTab, board.id]);
+
+  const displayedPosts = useMemo(() => {
+    return [...posts];
+  }, [posts]);
 
   const renderPostCard = (post: PostWithClientData) => (
     <Card key={post.id} className="mb-4 overflow-hidden relative">

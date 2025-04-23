@@ -10,13 +10,59 @@ import { Textarea } from "@/components/ui/textarea"
 import { ArrowLeft, ThumbsDown, ThumbsUp, Github } from "lucide-react"
 import DashboardHeader from "@/components/dashboard-header"
 
+// Define interfaces for data structures
+interface Author {
+  name: string;
+  avatar?: string;
+  role: string;
+}
+
+interface GitHubIssue {
+  linked: boolean;
+  url: string;
+  number: number;
+  status: string;
+}
+
+interface Post {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  votes: number;
+  userVote: number | null;
+  createdAt: string;
+  author: Author;
+  githubIssue?: GitHubIssue;
+}
+
+interface Reply {
+  id: string;
+  content: string;
+  votes: number;
+  userVote: number | null;
+  createdAt: string;
+  author: Author;
+}
+
+interface Comment {
+  id: string;
+  content: string;
+  votes: number;
+  userVote: number | null;
+  createdAt: string;
+  author: Author;
+  replies?: Reply[];
+}
+
+
 export default function PostDetailPage({ params: paramsPromise }: { params: Promise<{ id: string; postId: string }> }) {
   const params = use(paramsPromise)
   const boardId = params.id
   const postId = params.postId
   const router = useRouter()
-  const [post, setPost] = useState<any | null>(null)
-  const [comments, setComments] = useState<any[]>([])
+  const [post, setPost] = useState<Post | null>(null)
+  const [comments, setComments] = useState<Comment[]>([])
   const [newComment, setNewComment] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -91,7 +137,7 @@ export default function PostDetailPage({ params: paramsPromise }: { params: Prom
             comment.id === commentId
               ? {
                   ...comment,
-                  replies: comment.replies.map((reply) =>
+                  replies: (comment.replies ?? []).map((reply) =>
                     reply.id === replyId ? { ...reply, votes, userVote } : reply,
                   ),
                 }
