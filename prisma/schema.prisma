@@ -18,6 +18,7 @@ model User {
   emailVerified        DateTime?
   image                String?
   passwordHash         String? // Added for Credentials provider
+  bio                  String?              // added bio field
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
   accounts             Account[] // Added for NextAuth
@@ -37,6 +38,8 @@ model User {
   bannedBoardActions   BoardMember[]        @relation("BannedBoardUsers") // Relation for board bans issued by this user
   postVotes            PostVote[] // Added relation for PostVote
   commentVotes         CommentVote[] // Added relation for CommentVote
+  followers            Follow[]             @relation("followers") // users following this user
+  following            Follow[]             @relation("following") // users this user follows
   // Add other fields as needed, e.g., passwordHash if using credentials
 }
 
@@ -305,30 +308,25 @@ enum NotificationType {
 
 model Invite {
   id              String       @id @default(cuid())
-  invitedUsername String? // Make optional
+  invitedUsername String?      // Make optional
   status          InviteStatus @default(PENDING)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
-  invitedById String // ID of the user who sent the invite
-  invitedBy   User   @relation("SentInvites", fields: [invitedById], references: [id], onDelete: Cascade)
+  invitedById     String       // ID of the user who sent the invite
+  invitedBy       User         @relation("SentInvites", fields: [invitedById], references: [id], onDelete: Cascade)
 
-  // Link to either an organization OR a board, not both typically
-  organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  boardId String?
-  board   Board?  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  boardId         String?
+  board           Board?       @relation(fields: [boardId], references: [id], onDelete: Cascade)
 
-  // Optional: Link to the user account once they accept/exist
-  invitedUserId String?
-  invitedUser   User?   @relation("ReceivedInvites", fields: [invitedUserId], references: [id], onDelete: Cascade)
+  invitedUserId   String?
+  invitedUser     User?        @relation("ReceivedInvites", fields: [invitedUserId], references: [id], onDelete: Cascade)
 
-  notification Notification? // The notification associated with this invite
+  notification    Notification?
 
-  // Adjust unique constraints for nullable field
-  @@unique([invitedUsername, organizationId], name: "unique_org_invite_per_user")
-  @@unique([invitedUsername, boardId], name: "unique_board_invite_per_user")
   @@index([invitedUserId])
   @@index([organizationId])
   @@index([boardId])
@@ -339,6 +337,18 @@ enum InviteStatus {
   ACCEPTED
   DECLINED
   EXPIRED // Optional
+}
+
+// New model to track follow relationships
+model Follow {
+  id           String   @id @default(cuid())
+  follower     User     @relation("following", fields: [followerId], references: [id], onDelete: Cascade)
+  followerId   String
+  following    User     @relation("followers", fields: [followingId], references: [id], onDelete: Cascade)
+  followingId  String
+  createdAt    DateTime @default(now())
+
+  @@unique([followerId, followingId])
 }
 
 // Make sure OrganizationMember and BoardMember models exist and are correctly defined

@@ -175,3 +175,25 @@ export async function enforceBoardAdminMembership(userId: string, boardId: strin
 }
 
 // Optional: Add enforceBoardModeratorMembership if needed
+
+/**
+ * Get the membership status of a user for a specific organization.
+ * Returns whether the user is a member, is banned, and the user's role.
+ */
+export async function getOrganizationMembershipStatus(
+  userId: string,
+  organizationId: string
+): Promise<{ isMember: boolean; isBanned: boolean; role: string }> {
+  if (!userId) return { isMember: false, isBanned: false, role: 'guest' }
+  const member = await prisma.organizationMember.findUnique({
+    where: { userId_organizationId: { userId, organizationId } },
+    select: { role: true, status: true }
+  })
+  const isMember = !!member && member.status === 'ACTIVE'
+  const isBanned = !!member && member.status !== 'ACTIVE'
+  return {
+    isMember,
+    isBanned,
+    role: member?.role?.toLowerCase() ?? 'guest'
+  }
+}

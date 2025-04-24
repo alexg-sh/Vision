@@ -8,6 +8,7 @@ import { getServerSession } from "next-auth/next" // Import getServerSession
 import { authOptions } from "@/app/api/auth/[...nextauth]/route" // Import authOptions
 import { Toaster } from "@/components/ui/sonner" // Import the Toaster
 import { NotificationProvider } from "@/context/notification-context"; // Import NotificationProvider
+import DashboardHeader from "@/components/dashboard-header"; // Import DashboardHeader
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -33,6 +34,7 @@ export default async function RootLayout({
         <AuthProvider session={session}>
           <NotificationProvider> {/* Add NotificationProvider */}
             <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+              <DashboardHeader /> {/* Add the header here */}
               {/* Add container div for consistent margins */}
               <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                 {children}

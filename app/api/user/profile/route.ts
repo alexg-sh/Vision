@@ -39,3 +39,38 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
+
+export async function PUT(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const userId = session.user.id;
+  const body = await request.json();
+  const { bio, name, avatar, ...rest } = body;
+  try {
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        bio,
+        name,
+        image: avatar,
+        // allow updating other safe fields if needed
+      },
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        image: true,
+        bio: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: { select: { followers: true, following: true } }
+      }
+    });
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error('Failed to update profile:', error);
+    return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
+  }
+}

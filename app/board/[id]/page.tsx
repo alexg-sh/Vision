@@ -1,7 +1,8 @@
-import { getServerSession } from 'next-auth';
+import { notFound } from 'next/navigation';
+import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { notFound } from 'next/navigation';
+import { getBoardMembershipStatus } from '@/lib/permissions';
 import BoardClient from './BoardClient'; // Import the client component
 // Import the generated types directly if they exist
 import type { Board, Post, User, Organization } from '@prisma/client';
@@ -79,19 +80,25 @@ export type ClientBoardData = {
 type BoardUserRole = 'guest' | 'member' | 'moderator' | 'admin' | 'creator';
 
 
-export default async function BoardPage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
-  const params = await paramsPromise;
+export default async function BoardPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: boardId } = await params;
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
 
+  // Enforce active membership
+  const membership = await getBoardMembershipStatus(userId ?? '', boardId);
+  if (!membership.isMember || membership.isBanned) {
+    notFound();
+  }
+  const userRole = membership.role as 'admin' | 'moderator' | 'member';
+
   let board: BoardWithPostsAndOrg | null = null;
-  let userRole: BoardUserRole = 'guest';
 
   try {
     // Fetch board and its relations
     // Type the result explicitly for clarity
     board = await prisma.board.findUnique({
-      where: { id: params.id },
+      where: { id: boardId },
       include: {
         posts: {
           include: { author: true }, // Include author details for each post
@@ -103,27 +110,6 @@ export default async function BoardPage({ params: paramsPromise }: { params: Pro
 
     if (!board) {
       notFound();
-    }
-
-    // Determine user role
-    if (userId) {
-      if (board.createdById === userId) {
-        userRole = 'creator';
-      } else if (board.organizationId) {
-        const orgMember = await prisma.organizationMember.findUnique({
-          where: {
-            userId_organizationId: {
-              userId: userId,
-              organizationId: board.organizationId,
-            },
-            status: 'ACTIVE'
-          },
-          select: { role: true },
-        });
-        if (orgMember) {
-          userRole = orgMember.role.toLowerCase() as BoardUserRole;
-        }
-      }
     }
 
     // Prepare initial posts with client-side data structure

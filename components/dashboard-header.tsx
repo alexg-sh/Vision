@@ -70,7 +70,10 @@ export default function DashboardHeader() {
         try {
           const response = await fetch(`/api/user/organizations`);
           if (!response.ok) {
-            throw new Error(`Failed to fetch organizations: ${response.statusText}`);
+            // On any error (including 401), clear the list and log
+            console.error(`Failed to fetch organizations: ${response.status} ${response.statusText}`);
+            setOrganizations([]);
+            return;
           }
           const data: Organization[] = await response.json();
           setOrganizations(data);
@@ -128,6 +131,9 @@ export default function DashboardHeader() {
   const userEmail = session?.user?.email || "";
   const userImage = session?.user?.image || "/placeholder-user.jpg";
   const userFallback = userName?.charAt(0).toUpperCase() || "U";
+  // Extract username for profile link
+  // Cast session.user to include the potentially custom 'username' property
+  const userUsername = (session?.user as { username?: string | null })?.username || session?.user?.name || "";
 
   return (
     <header className="border-b bg-background sticky top-0 z-10">
@@ -316,7 +322,7 @@ export default function DashboardHeader() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push("/settings")}>
+                <DropdownMenuItem onClick={() => router.push(`/user/${userUsername}`)}>
                   <User className="mr-2 h-4 w-4" />
                   <span>Profile</span>
                 </DropdownMenuItem>
