@@ -207,6 +207,9 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
   const currentUserMemberInfo = members.find(m => m.userId === session?.user?.id);
   const currentUserRole = organization?.userRole;
   const isAdmin = currentUserRole === 'ADMIN';
+  const isModerator = currentUserRole === 'MODERATOR';
+  const isCreator = currentUserRole === 'CREATOR';
+  const canAccessSettings = isAdmin || isModerator || isCreator;
 
   // --- Handler Functions ---
 
@@ -422,7 +425,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
   if (isFetching || sessionStatus === 'loading') {
     return (
       <div className="flex min-h-screen flex-col">
-        <DashboardHeader />
         <main className="flex-1 container py-6 flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </main>
@@ -434,7 +436,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
   if (error || !organization) {
     return (
       <div className="flex min-h-screen flex-col">
-        <DashboardHeader />
         <main className="flex-1 container py-6">
           <Card className="max-w-4xl mx-auto">
             <CardHeader>
@@ -450,18 +451,17 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
     );
   }
 
-  // Render settings page only if user is an admin
-  if (!isAdmin) {
+  // Render settings page only if user is an admin, moderator, or creator
+  if (!canAccessSettings) {
      return (
       <div className="flex min-h-screen flex-col">
-        <DashboardHeader />
         <main className="flex-1 container py-6">
           <Card className="max-w-4xl mx-auto">
             <CardHeader>
               <CardTitle>Access Denied</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-destructive">You must be an administrator to access organization settings.</p>
+              <p className="text-destructive">You must be an administrator, moderator, or creator to access organization settings.</p>
               <Button onClick={() => router.push(`/organization/${organizationId}`)} className="mt-4">Back to Organization</Button>
             </CardContent>
           </Card>
@@ -472,7 +472,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
 
   return (
     <div className="flex min-h-screen flex-col">
-      <DashboardHeader />
       <main className="flex-1 container py-6">
         <div className="max-w-4xl mx-auto">
           <div className="mb-6">

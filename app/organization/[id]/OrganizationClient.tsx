@@ -43,7 +43,6 @@ import {
 } from "lucide-react"
 import { OrganizationWithDetails } from "./page" // Import the type from page.tsx
 // Removed incorrect import: import { OrganizationMember } from '@prisma/client';
-import { createAuditLog } from '@/lib/audit-log'; // Import audit log helper
 
 // Define types for nested relations based on OrganizationWithDetails
 type BoardWithCounts = OrganizationWithDetails['boards'][number];
@@ -88,6 +87,9 @@ export default function OrganizationClient({ organization, userRole, userId }: O
 
   const isAdmin = userRole === "admin"
   const isModerator = userRole === "moderator" || isAdmin
+
+  // Show settings button for admin, moderator, or creator
+  const canManageSettings = userRole === 'admin' || userRole === 'moderator' || userRole === 'creator';
 
   const handleCreateBoard = async () => {
     if (newBoardName.trim()) {
@@ -256,17 +258,21 @@ export default function OrganizationClient({ organization, userRole, userId }: O
       }
       
       // Create audit log for unban action
-      await createAuditLog({
-        orgId: organization.id,
-        action: "UNBAN_USER" as any,
-        entityType: "USER" as any,
-        entityId: userIdToUnban,
-        entityName: userToUnban.user.name || "User",
-        details: {
-          organizationId: organization.id,
-          organizationName: organization.name,
-          unbannedBy: userId
-        }
+      await fetch('/api/audit-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orgId: organization.id,
+          action: 'UNBAN_USER',
+          entityType: 'USER',
+          entityId: userIdToUnban,
+          entityName: userToUnban.user.name || 'User',
+          details: {
+            organizationId: organization.id,
+            organizationName: organization.name,
+            unbannedBy: userId
+          }
+        })
       });
 
       toast.success(responseData.message || "User successfully unbanned.");
@@ -306,18 +312,22 @@ export default function OrganizationClient({ organization, userRole, userId }: O
       }
       
       // Create audit log for ban action
-      await createAuditLog({
-        orgId: organization.id,
-        action: "BAN_USER" as any,
-        entityType: "USER" as any,
-        entityId: userId,
-        entityName: userToBan.user.name || "User",
-        details: {
-          organizationId: organization.id,
-          organizationName: organization.name,
-          reason: reason,
-          bannedBy: userId
-        }
+      await fetch('/api/audit-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orgId: organization.id,
+          action: 'BAN_USER',
+          entityType: 'USER',
+          entityId: userId,
+          entityName: userToBan.user.name || 'User',
+          details: {
+            organizationId: organization.id,
+            organizationName: organization.name,
+            reason: reason,
+            bannedBy: userId
+          }
+        })
       });
 
       toast.success(responseData.message || "User successfully banned.");
@@ -359,7 +369,7 @@ export default function OrganizationClient({ organization, userRole, userId }: O
         <div className="flex items-center gap-4">
           <div className="relative h-16 w-16 rounded-lg overflow-hidden">
             <Image
-              src={organization.image || "/placeholder.svg"}
+              src={organization.imageUrl || "/placeholder.svg"} // Corrected: Use imageUrl
               alt={organization.name}
               fill
               className="object-cover"
@@ -498,7 +508,7 @@ export default function OrganizationClient({ organization, userRole, userId }: O
             </Dialog>
           )}
 
-          {isAdmin && (
+          {canManageSettings && (
             <Button variant="outline" onClick={() => router.push(`/organization/${organization.id}/settings`)} disabled={isLoading}>
               <Settings className="mr-2 h-4 w-4" />
               Organization Settings
@@ -580,7 +590,7 @@ export default function OrganizationClient({ organization, userRole, userId }: O
               <Link key={board.id} href={`/board/${board.id}`}>
                 <Card className="h-full hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors overflow-hidden">
                   <div className="relative h-40 w-full">
-                    <Image src={board.image || "/placeholder.svg"} alt={board.name} fill className="object-cover" />
+                    <Image src={board.imageUrl || "/placeholder.svg"} alt={board.name} fill className="object-cover" />
                     {board.isPrivate && (
                       <div className="absolute top-2 right-2">
                         <Badge variant="secondary" className="gap-1">
@@ -606,13 +616,7 @@ export default function OrganizationClient({ organization, userRole, userId }: O
                     <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
                       <div className="flex items-center gap-1">
                         <MessageSquare className="h-4 w-4" />
-                        {/* Placeholder for post count - needs aggregation */}
                         <span>{board._count?.posts ?? 0} posts</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <User className="h-4 w-4" />
-                        {/* Placeholder for member count - needs relation/aggregation */}
-                        <span>{board._count?.members ?? 1} members</span>
                       </div>
                     </div>
                   </CardContent>
@@ -670,7 +674,7 @@ export default function OrganizationClient({ organization, userRole, userId }: O
                   <div key={member.userId} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10">
-                        <AvatarImage src={member.user.image || "/placeholder-user.jpg"} alt={member.user.name || 'User'} />
+                        <AvatarImage src={member.user.image || "/placeholder-user.jpg"} alt={member.user.name || 'User'} /> {/* Corrected: Use image */}
                         <AvatarFallback>{member.user.name?.charAt(0) || 'U'}</AvatarFallback>
                       </Avatar>
                       <div>

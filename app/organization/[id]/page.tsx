@@ -10,7 +10,7 @@ export type OrganizationWithDetails = {
   id: string;
   name: string;
   description: string | null;
-  image: string | null;
+  imageUrl: string | null; // Changed from image to imageUrl
   isPrivate: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -18,7 +18,7 @@ export type OrganizationWithDetails = {
     id: string;
     name: string;
     description: string | null;
-    image: string | null;
+    imageUrl: string | null; // Changed from image to imageUrl
     isPrivate: boolean;
     organizationId: string | null;
     createdById: string;
@@ -41,7 +41,7 @@ export type OrganizationWithDetails = {
       id: string;
       name: string | null;
       email: string | null;
-      image: string | null;
+      image: string | null; // Changed from imageUrl to image
     };
   }>;
   auditLogs: Array<{
@@ -62,8 +62,8 @@ export type OrganizationWithDetails = {
   };
 };
 
-export default async function OrganizationPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id: orgId } = await params;
+export default async function OrganizationPage({ params }: { params: { id: string } }) {
+  const { id: orgId } = params;
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
 
@@ -72,7 +72,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
   if (!membership.isMember || membership.isBanned) {
     notFound();
   }
-  const userRole = membership.role as 'admin' | 'member';
+  const userRole = (membership.role as string)?.toLowerCase() as 'admin' | 'moderator' | 'creator' | 'member' | 'guest';
 
   // Fetch organization details including members
   const organization = await prisma.organization.findUnique({
@@ -84,7 +84,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
       },
       members: {
         include: {
-          user: { select: { id: true, name: true, email: true, image: true } },
+          user: { select: { id: true, name: true, email: true, image: true } }, // Changed imageUrl to image
         },
         orderBy: [{ status: 'asc' }, { role: 'asc' }],
       },
