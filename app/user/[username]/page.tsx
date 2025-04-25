@@ -63,7 +63,7 @@ export default async function UserProfile({ params }: { params: Promise<{ userna
     <UserProfilePage
       user={{
         id: user.id,
-        username: user.username,
+        username: user.username ?? '',
         name: user.name,
         image: user.image,
         bio: user.bio,
@@ -77,8 +77,22 @@ export default async function UserProfile({ params }: { params: Promise<{ userna
         linkedin: user.linkedin,
         github: user.github,
       }}
-      createdBoards={user.createdBoards}
-      memberBoards={memberBoards}
+      createdBoards={user.createdBoards.map((board) => ({
+        id: board.id,
+        name: board.name,
+        slug: board.name.toLowerCase().replace(/\s+/g, '-'),
+        description: board.description,
+        createdAt: board.createdAt.toISOString(),
+        _count: board._count,
+      }))}
+      memberBoards={memberBoards.map(board => ({
+        id: board.id,
+        name: board.name ?? '',
+        slug: board.name ? board.name.toLowerCase().replace(/\s+/g, '-') : '',
+        description: board.description,
+        createdAt: board.createdAt.toISOString(),
+        _count: board._count,
+      }))}
       currentUserId={currentUserId}
     />
   )

@@ -103,7 +103,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
     notFound();
   }
 
-  const finalOrganizationData = organization as OrganizationWithDetails;
+  const finalOrganizationData = organization as unknown as OrganizationWithDetails;
 
   return (
     <main className="flex-1 container py-6">

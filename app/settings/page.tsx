@@ -39,7 +39,24 @@ import {
   Linkedin,
 } from "lucide-react"
 import { formatDistanceToNow } from 'date-fns'; // Import date-fns function
-import { createAuditLog } from "@/lib/audit-log"; // Import audit log helper
+
+// Helper function to call the new API route
+async function logAuditAction(logData: Omit<AuditLogProps, 'userId'>) {
+  try {
+    const response = await fetch('/api/audit-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(logData),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Failed to create audit log:", errorData.message);
+      // Optionally, handle this error more visibly
+    }
+  } catch (error) {
+    console.error("Error calling audit log API:", error);
+  }
+}
 
 interface UserSession {
   id: string;
@@ -49,6 +66,17 @@ interface UserSession {
   isCurrent: boolean;
   deviceInfo: string; // Placeholder
   lastActive: string; // ISO date string
+}
+
+// Define the props type based on your lib/audit-log.ts
+interface AuditLogProps {
+  orgId?: string;
+  boardId?: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  entityName: string;
+  details?: Record<string, any>;
 }
 
 export default function AccountSettingsPage() {
@@ -180,10 +208,10 @@ export default function AccountSettingsPage() {
       const updatedData = await response.json();
       setSuccessMessage("Profile updated successfully")
       
-      // Create audit log for profile update
-      await createAuditLog({
-        action: "UPDATE_USER_PROFILE" as any,
-        entityType: "USER" as any,
+      // Replace direct call with API call
+      await logAuditAction({
+        action: "UPDATE_USER_PROFILE",
+        entityType: "USER",
         entityId: session.user.id,
         entityName: profile.displayName || profile.username,
         details: {
@@ -238,10 +266,10 @@ export default function AccountSettingsPage() {
             throw new Error(result.message || 'Failed to change password');
         }
 
-        // Create audit log for password change
-        await createAuditLog({
-            action: "CHANGE_PASSWORD" as any,
-            entityType: "USER" as any,
+        // Replace direct call with API call
+        await logAuditAction({
+            action: "CHANGE_PASSWORD",
+            entityType: "USER",
             entityId: session?.user?.id as string,
             entityName: session?.user?.name || "User",
             details: {
@@ -400,10 +428,10 @@ export default function AccountSettingsPage() {
         throw new Error('Failed to update notification settings');
       }
 
-      // Create audit log for notification settings update
-      await createAuditLog({
-        action: "UPDATE_NOTIFICATION_SETTINGS" as any,
-        entityType: "USER" as any,
+      // Replace direct call with API call
+      await logAuditAction({
+        action: "UPDATE_NOTIFICATION_SETTINGS",
+        entityType: "USER",
         entityId: session.user.id,
         entityName: session?.user?.name || "User",
         details: {

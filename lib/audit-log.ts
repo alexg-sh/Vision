@@ -42,7 +42,6 @@ export const createAuditLog = async (props: AuditLogProps) => {
         orgId: orgId,
         boardId: boardId,
         userId: userId,
-        userName: userName, // Store user name for easier display
         action: action,
         entityType: entityType,
         entityId: entityId,
