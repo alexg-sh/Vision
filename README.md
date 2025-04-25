@@ -94,11 +94,3 @@ Follow these instructions to set up the project locally for development.
 
 6.  **Open the application:**
     Navigate to `http://localhost:3000` (or the port specified) in your web browser.
-
-## Contributing
-
-*(Optional: Add guidelines for contributing to the project if applicable)*
-
-## License
-
-*(Optional: Specify the license for the project, e.g., MIT)*
