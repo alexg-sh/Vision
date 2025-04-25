@@ -66,64 +66,44 @@ export const authOptions: AuthOptions = {
   ],
   pages: {
     signIn: '/login', // Set the custom login page path
-    // ... other custom pages if needed
+    // error: '/auth/error', // Optional: Custom error page
+    // signOut: '/auth/signout', // Optional: Custom sign out page
+    // verifyRequest: '/auth/verify-request', // Optional: Email verification page
+    // newUser: '/auth/new-user' // Optional: New user page
   },
   session: {
-    strategy: "jwt", // Use JWT for session strategy
+    strategy: "jwt", // Revert back to JWT strategy for CredentialsProvider
+    // maxAge and updateAge are less relevant for JWT strategy unless using sliding sessions
   },
   callbacks: {
-    // Add custom callbacks if needed (e.g., to add user ID to session)
-    async session({ session, token }) {
-      if (token && session.user) {
-        session.user.id = token.sub ?? ""; // Add user ID from token to session, fallback to an empty string
-      }
-      return session;
-    },
     async jwt({ token, user }) {
-      // Persist the user ID onto the token right after signin
+      // Add user ID to the JWT token on initial sign in
       if (user) {
-        token.sub = user.id;
+        token.sub = user.id; // 'sub' is the standard JWT claim for subject (user ID)
+        // You could add other user properties here if needed, e.g., token.role = user.role;
       }
-      console.log("JWT callback, token:", token);
+      console.log("JWT callback (strategy=jwt), token:", token);
       return token;
+    },
+    async session({ session, token }) {
+      // Add user ID from the JWT token (sub claim) to the session object
+      if (token && session.user) {
+        session.user.id = token.sub as string; // Ensure ID is added to the session
+        // Add other properties from token if needed: session.user.role = token.role;
+      }
+      console.log("Session callback (strategy=jwt), session:", session);
+      return session;
     },
   },
   events: {
+    // The signIn event logic might need adjustment if you were relying on DB session
+    // For JWT, there's no DB session created automatically by NextAuth to update.
+    // If you still need userAgent tracking, you'd need a custom solution.
     async signIn({ user, account, profile, isNewUser }: { user: User; account: Account | null; profile?: Profile; isNewUser?: boolean }) {
-      const req = account?.providerAccountId ? { headers: { "user-agent": "unknown" } } : null; // Adjust as needed
       // This event fires on successful sign-in.
-      // We can attempt to update the session here or shortly after.
-      // However, the session might not be fully created *yet* when this runs.
-      // A more reliable way might be needed if this proves insufficient.
-      console.log('signIn event', { userId: user.id });
-      // We need the session token to update the correct session.
-      // This event doesn't directly provide the session token being created.
-      // Let's try updating the *latest* session for the user, assuming it's the one just created.
-      // This is a potential race condition if multiple logins happen simultaneously.
-
-      const userAgent = req?.headers?.["user-agent"] || null;
-
-      if (userAgent && user.id) {
-        try {
-          // Find the most recently created session for this user
-          const latestSession = await prisma.session.findFirst({
-            where: { userId: user.id },
-            orderBy: { expires: 'desc' }, // Assuming expires reflects creation order closely
-          });
-
-          if (latestSession) {
-            await prisma.session.update({
-              where: { sessionToken: latestSession.sessionToken }, // Use sessionToken as the unique identifier
-              data: { userAgent: userAgent },
-            });
-            console.log(`Updated userAgent for session: ${latestSession.sessionToken}`);
-          } else {
-            console.log('No session found to update userAgent for user:', user.id);
-          }
-        } catch (error) {
-          console.error("Error updating session with userAgent:", error);
-        }
-      }
+      console.log('signIn event (JWT strategy)', { userId: user.id });
+      // Original userAgent update logic is removed as it targeted DB sessions.
+      // If needed, implement custom DB logging here based on user.id and request headers.
     },
     // Add other events like signOut, createUser, updateUser, linkAccount if needed
   },

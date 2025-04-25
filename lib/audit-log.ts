@@ -16,7 +16,6 @@ interface AuditLogProps {
 /**
  * Creates an audit log entry.
  * Fetches the current user session to associate the action with a user.
- * Requires either orgId or boardId to be provided.
  * @param props - The properties for the audit log entry.
  */
 export const createAuditLog = async (props: AuditLogProps) => {
@@ -31,16 +30,17 @@ export const createAuditLog = async (props: AuditLogProps) => {
   const userId = session.user.id;
   const userName = session.user.name || "Unknown User"; // Handle cases where name might be null
 
-  if (!orgId && !boardId) {
-     console.error("Audit Log Error: Either orgId or boardId must be provided.");
-     throw new Error("Missing organization or board context for audit log.");
-  }
+  // Removed the check requiring orgId or boardId, as some logs might be user-specific
+  // if (!orgId && !boardId) {
+  //    console.error("Audit Log Error: Either orgId or boardId must be provided.");
+  //    throw new Error("Missing organization or board context for audit log.");
+  // }
 
   try {
     await db.auditLog.create({
       data: {
-        orgId: orgId,
-        boardId: boardId,
+        orgId: orgId, // Will be null if not provided
+        boardId: boardId, // Will be null if not provided
         userId: userId,
         action: action,
         entityType: entityType,
@@ -51,6 +51,7 @@ export const createAuditLog = async (props: AuditLogProps) => {
     });
   } catch (error) {
     console.error("Audit Log Error: Failed to create audit log entry:", error);
-    // Depending on requirements, you might want to re-throw or handle differently
+    // Re-throw the error to be handled by the calling API route
+    throw new Error("Failed to save audit log to database.");
   }
 };

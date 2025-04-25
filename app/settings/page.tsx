@@ -91,6 +91,7 @@ export default function AccountSettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null); // Ref for file input
   const [sessions, setSessions] = useState<UserSession[]>([]);
   const [sessionError, setSessionError] = useState("");
+  const [error, setError] = useState<string | null>(null); // Add state for general errors
 
   // User profile state
   const [profile, setProfile] = useState({
@@ -412,38 +413,40 @@ export default function AccountSettingsPage() {
   };
 
   const handleNotificationSettingsUpdate = async () => {
-    if (!session?.user?.id) return;
-    setIsLoading(true);
     try {
-      const response = await fetch(`/api/user/notifications`, {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await fetch('/api/user/notifications', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          userId: session.user.id, 
-          settings: notificationSettings 
-        })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ settings: notificationSettings }),
       });
 
       if (!response.ok) {
+        // Try to get more specific error message from the API response body
+        const errorData = await response.json().catch(() => ({ message: `HTTP error ${response.status}` }));
+        // Correct the console error message
+        console.error("Failed to update notification settings:", errorData.message);
         throw new Error('Failed to update notification settings');
       }
 
       // Replace direct call with API call
       await logAuditAction({
-        action: "UPDATE_NOTIFICATION_SETTINGS",
-        entityType: "USER",
-        entityId: session.user.id,
-        entityName: session?.user?.name || "User",
-        details: {
-          updatedSettings: notificationSettings
-        }
+        action: "UPDATE",
+        entityType: "USER_PREFERENCES",
+        entityId: session?.user?.id ?? "unknown",
+        entityName: "Notification Settings",
+        details: { updatedSettings: notificationSettings },
       });
 
-      setSuccessMessage("Notification preferences updated successfully");
-      setTimeout(() => setSuccessMessage(""), 3000);
-    } catch (error) {
-      console.error("Error updating notification settings:", error);
-      // Handle error display
+      toast({ title: "Success", description: "Notification settings updated." });
+    } catch (err: any) {
+      console.error("Error in handleNotificationSettingsUpdate:", err);
+      setError(err.message || "An unexpected error occurred.");
+      toast({ title: "Error", description: err.message || "Could not update settings.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
