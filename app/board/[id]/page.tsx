@@ -85,33 +85,38 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
 
-  // Enforce active membership
-  const membership = await getBoardMembershipStatus(userId ?? '', boardId);
-  if (!membership.isMember || membership.isBanned) {
+  // Fetch board and its relations, including creator
+  const board = await prisma.board.findUnique({
+    where: { id: boardId },
+    include: {
+      posts: { include: { author: true }, orderBy: { createdAt: 'desc' } },
+      organization: true,
+    },
+  }) as BoardWithPostsAndOrg & { createdById: string } | null;
+  if (!board) {
     notFound();
   }
-  const userRole = membership.role as 'admin' | 'moderator' | 'member';
 
-  let board: BoardWithPostsAndOrg | null = null;
-
-  try {
-    // Fetch board and its relations
-    // Type the result explicitly for clarity
-    board = await prisma.board.findUnique({
-      where: { id: boardId },
-      include: {
-        posts: {
-          include: { author: true }, // Include author details for each post
-          orderBy: { createdAt: 'desc' },
-        },
-        organization: true, // Include organization details
-      },
-    }) as BoardWithPostsAndOrg | null; // Explicit cast
-
-    if (!board) {
+  // Determine access role
+  let userRole: BoardUserRole;
+  if (!board.isPrivate) {
+    // Public boards accessible by anyone
+    userRole = board.createdById === userId ? 'creator' : 'guest';
+  } else if (board.createdById === userId) {
+    // Creator always has access
+    userRole = 'creator';
+  } else {
+    // Private board: enforce membership
+    const membership = await getBoardMembershipStatus(userId ?? '', boardId);
+    if (!membership.isMember || membership.isBanned) {
       notFound();
     }
+    userRole = membership.role as unknown as 'admin' | 'moderator' | 'member';
+  }
 
+  console.log(`[BoardPage] Determined userRole for board ${boardId}: ${userRole} (User ID: ${userId}, Creator ID: ${board.createdById})`); // Add this log
+
+  try {
     // Prepare initial posts with client-side data structure
     // Explicitly type the 'post' parameter with the manually defined interface
     const initialPosts: PostWithClientData[] = board.posts.map((post: PostWithAuthor): PostWithClientData => ({

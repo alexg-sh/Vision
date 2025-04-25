@@ -4,7 +4,6 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { getMembershipStatus } from '@/lib/permissions';
 import { prisma } from '@/lib/prisma';
 import OrganizationClient from './OrganizationClient';
-import DashboardHeader from '@/components/dashboard-header';
 
 // --- Manual type for OrganizationWithDetails ---
 export type OrganizationWithDetails = {
@@ -107,15 +106,12 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
   const finalOrganizationData = organization as OrganizationWithDetails;
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <DashboardHeader />
-      <main className="flex-1 container py-6">
-        <OrganizationClient
-          organization={finalOrganizationData}
-          userRole={userRole}
-          userId={userId || null}
-        />
-      </main>
-    </div>
+    <main className="flex-1 container py-6">
+      <OrganizationClient
+        organization={finalOrganizationData}
+        userRole={userRole}
+        userId={userId || null}
+      />
+    </main>
   );
 }

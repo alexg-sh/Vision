@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { MessageSquare, User, Globe, Building2, Search, Users, Loader2 } from "lucide-react"
-import DashboardHeader from "@/components/dashboard-header"
 
 interface PublicOrganization {
   id: string
@@ -29,12 +28,12 @@ interface PublicBoard {
   name: string
   description: string | null
   createdAt: string
-  organization: {
+  organization?: {
     id: string
     name: string
     slug: string
     imageUrl: string | null
-  }
+  } | null // personal boards have no org
 }
 
 export default function DiscoverPage() {
@@ -87,7 +86,7 @@ export default function DiscoverPage() {
     (board) =>
       board.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (board.description && board.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      board.organization.name.toLowerCase().includes(searchQuery.toLowerCase()),
+      (board.organization?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
   const renderLoading = () => (
@@ -98,106 +97,105 @@ export default function DiscoverPage() {
   )
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <DashboardHeader />
-      <main className="flex-1 container py-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold">Discover</h1>
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search organizations and boards..."
-              className="pl-8"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
+    <main className="flex-1 container py-6">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold">Discover</h1>
+        <div className="relative w-full max-w-sm">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search organizations and boards..."
+            className="pl-8"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
+      </div>
 
-        <Tabs defaultValue="organizations" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="organizations">Public Organizations</TabsTrigger>
-            <TabsTrigger value="boards">Public Boards</TabsTrigger>
-          </TabsList>
+      <Tabs defaultValue="organizations" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="organizations">Public Organizations</TabsTrigger>
+          <TabsTrigger value="boards">Public Boards</TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="organizations">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {loadingOrgs ? (
-                renderLoading()
-              ) : filteredOrganizations.length === 0 ? (
-                <div className="col-span-full text-center py-12">
-                  <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No organizations found</h3>
-                  <p className="text-muted-foreground">Try adjusting your search or browse all public organizations.</p>
-                </div>
-              ) : (
-                filteredOrganizations.map((org) => (
-                  <Link key={org.id} href={`/organization/${org.id}`}>
-                    <Card className="h-full hover:bg-muted/50 transition-colors flex flex-col">
-                      <CardHeader className="flex flex-row items-start gap-4">
-                        <div className="relative h-16 w-16 rounded-lg overflow-hidden flex-shrink-0">
-                          <Image src={org.imageUrl || "/placeholder-logo.svg"} alt={org.name} fill className="object-cover" />
-                        </div>
-                        <div className="flex-1">
-                          <CardTitle className="flex items-center gap-2 text-lg">
-                            {org.name}
-                            <Badge variant="outline" className="gap-1 text-xs font-normal">
-                              <Globe className="h-3 w-3" />
-                              Public
-                            </Badge>
-                          </CardTitle>
-                          <CardDescription className="mt-1 line-clamp-2">{org.description || "No description provided."}</CardDescription>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="flex-grow">
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Users className="h-4 w-4" />
-                            <span>{org._count.members} members</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <MessageSquare className="h-4 w-4" />
-                            <span>{org._count.boards} public boards</span>
-                          </div>
-                        </div>
-                      </CardContent>
-                      <CardFooter>
-                        <Button variant="outline" size="sm" className="w-full">
-                          View Organization
-                        </Button>
-                      </CardFooter>
-                    </Card>
-                  </Link>
-                ))
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="boards">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {loadingBoards ? (
-                renderLoading()
-              ) : filteredBoards.length === 0 ? (
-                <div className="col-span-full text-center py-12">
-                  <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No boards found</h3>
-                  <p className="text-muted-foreground">Try adjusting your search or browse all public boards.</p>
-                </div>
-              ) : (
-                filteredBoards.map((board) => (
-                  <Link key={board.id} href={`/board/${board.id}`}>
-                    <Card className="h-full hover:bg-muted/50 transition-colors overflow-hidden flex flex-col">
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-lg">{board.name}</CardTitle>
+        <TabsContent value="organizations">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {loadingOrgs ? (
+              renderLoading()
+            ) : filteredOrganizations.length === 0 ? (
+              <div className="col-span-full text-center py-12">
+                <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">No organizations found</h3>
+                <p className="text-muted-foreground">Try adjusting your search or browse all public organizations.</p>
+              </div>
+            ) : (
+              filteredOrganizations.map((org) => (
+                <Link key={org.id} href={`/organization/${org.id}`}>
+                  <Card className="h-full hover:bg-muted/50 transition-colors flex flex-col">
+                    <CardHeader className="flex flex-row items-start gap-4">
+                      <div className="relative h-16 w-16 rounded-lg overflow-hidden flex-shrink-0">
+                        <Image src={org.imageUrl || "/placeholder-logo.svg"} alt={org.name} fill className="object-cover" />
+                      </div>
+                      <div className="flex-1">
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          {org.name}
                           <Badge variant="outline" className="gap-1 text-xs font-normal">
                             <Globe className="h-3 w-3" />
                             Public
                           </Badge>
+                        </CardTitle>
+                        <CardDescription className="mt-1 line-clamp-2">{org.description || "No description provided."}</CardDescription>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="flex-grow">
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Users className="h-4 w-4" />
+                          <span>{org._count.members} members</span>
                         </div>
-                        <CardDescription className="mt-1 line-clamp-2">{board.description || "No description provided."}</CardDescription>
-                      </CardHeader>
-                      <CardContent className="flex-grow">
+                        <div className="flex items-center gap-1">
+                          <MessageSquare className="h-4 w-4" />
+                          <span>{org._count.boards} public boards</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter>
+                      <Button variant="outline" size="sm" className="w-full">
+                        View Organization
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </Link>
+              ))
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="boards">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {loadingBoards ? (
+              renderLoading()
+            ) : filteredBoards.length === 0 ? (
+              <div className="col-span-full text-center py-12">
+                <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">No boards found</h3>
+                <p className="text-muted-foreground">Try adjusting your search or browse all public boards.</p>
+              </div>
+            ) : (
+              filteredBoards.map((board) => (
+                <Link key={board.id} href={`/board/${board.id}`} className="block"> 
+                  <Card className="h-full hover:bg-muted/50 transition-colors overflow-hidden flex flex-col">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg">{board.name}</CardTitle>
+                        <Badge variant="outline" className="gap-1 text-xs font-normal">
+                          <Globe className="h-3 w-3" />
+                          Public
+                        </Badge>
+                      </div>
+                      <CardDescription className="mt-1 line-clamp-2">{board.description || "No description provided."}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex-grow">
+                      {board.organization ? (
                         <div className="flex items-center justify-between text-sm">
                           <div className="text-muted-foreground flex items-center gap-1">
                             <Image src={board.organization.imageUrl || "/placeholder-logo.svg"} alt={board.organization.name} width={16} height={16} className="rounded-sm" />
@@ -210,20 +208,22 @@ export default function DiscoverPage() {
                             </Link>
                           </div>
                         </div>
-                      </CardContent>
-                      <CardFooter>
-                        <Button variant="outline" size="sm" className="w-full">
-                          View Board
-                        </Button>
-                      </CardFooter>
-                    </Card>
-                  </Link>
-                ))
-              )}
-            </div>
-          </TabsContent>
-        </Tabs>
-      </main>
-    </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Personal board</p>
+                      )}
+                    </CardContent>
+                    <CardFooter>
+                      <Button variant="outline" size="sm" className="w-full">
+                        View Board
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </Link>
+              ))
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
+    </main>
   )
 }

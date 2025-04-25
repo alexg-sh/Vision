@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation" // Import useRouter
@@ -42,7 +42,8 @@ import {
   Undo
 } from "lucide-react"
 import { OrganizationWithDetails } from "./page" // Import the type from page.tsx
-import { Prisma, OrganizationMember } from '@prisma/client'; // Import Prisma for types and OrganizationMember
+// Removed incorrect import: import { OrganizationMember } from '@prisma/client';
+import { createAuditLog } from '@/lib/audit-log'; // Import audit log helper
 
 // Define types for nested relations based on OrganizationWithDetails
 type BoardWithCounts = OrganizationWithDetails['boards'][number];
@@ -82,7 +83,7 @@ export default function OrganizationClient({ organization, userRole, userId }: O
   const [isJoinLoading, setIsJoinLoading] = useState(false);
   const [isUnbanning, setIsUnbanning] = useState<string | null>(null); // Track which user is being unbanned
   const [isBanConfirmOpen, setIsBanConfirmOpen] = useState(false); // State for ban confirm dialog
-  const [memberToBan, setMemberToBan] = useState<OrganizationMember | null>(null); // Member to potentially ban
+  const [memberToBan, setMemberToBan] = useState<MemberWithUser | null>(null); // Use the derived MemberWithUser type
   const [banReason, setBanReason] = useState(""); // Reason for banning
 
   const isAdmin = userRole === "admin"
@@ -235,6 +236,9 @@ export default function OrganizationClient({ organization, userRole, userId }: O
 
   const handleUnbanUser = async (userIdToUnban: string) => {
     if (!isAdmin) return; // Extra safety check
+    
+    const userToUnban = organization.members.find(m => m.userId === userIdToUnban);
+    if (!userToUnban) return;
 
     setIsUnbanning(userIdToUnban); // Set loading state for this specific user
     console.log(`Attempting to unban user: ${userIdToUnban} in org: ${organization.id}`);
@@ -250,6 +254,20 @@ export default function OrganizationClient({ organization, userRole, userId }: O
       if (!response.ok) {
         throw new Error(responseData.message || `Failed to unban user. Status: ${response.status}`);
       }
+      
+      // Create audit log for unban action
+      await createAuditLog({
+        orgId: organization.id,
+        action: "UNBAN_USER" as any,
+        entityType: "USER" as any,
+        entityId: userIdToUnban,
+        entityName: userToUnban.user.name || "User",
+        details: {
+          organizationId: organization.id,
+          organizationName: organization.name,
+          unbannedBy: userId
+        }
+      });
 
       toast.success(responseData.message || "User successfully unbanned.");
       router.refresh(); // Refresh the page to show the updated member list/status
@@ -261,6 +279,58 @@ export default function OrganizationClient({ organization, userRole, userId }: O
       });
     } finally {
       setIsUnbanning(null); // Clear loading state
+  }
+};
+
+// Function to handle banning a user from the organization
+  const handleBanUser = async (userId: string, reason: string) => {
+    if (!isAdmin) return; // Safety check
+    
+    const userToBan = organization.members.find(m => m.userId === userId);
+    if (!userToBan) return;
+
+    try {
+      const response = await fetch(`/api/organization/${organization.id}/bans`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userId,
+          reason: reason
+        }),
+      });
+
+      const responseData = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(responseData.message || `Failed to ban user. Status: ${response.status}`);
+      }
+      
+      // Create audit log for ban action
+      await createAuditLog({
+        orgId: organization.id,
+        action: "BAN_USER" as any,
+        entityType: "USER" as any,
+        entityId: userId,
+        entityName: userToBan.user.name || "User",
+        details: {
+          organizationId: organization.id,
+          organizationName: organization.name,
+          reason: reason,
+          bannedBy: userId
+        }
+      });
+
+      toast.success(responseData.message || "User successfully banned.");
+      setIsBanConfirmOpen(false); // Close the confirm dialog
+      setMemberToBan(null); // Reset selected member
+      setBanReason(""); // Clear reason field
+      router.refresh(); // Refresh the page to show the updated member list/status
+
+    } catch (error: any) {
+      console.error("Error banning user:", error);
+      toast.error("Error", {
+        description: error.message || "Could not ban the user."
+      });
     }
   };
 

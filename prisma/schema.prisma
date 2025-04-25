@@ -19,6 +19,10 @@ model User {
   image                String?
   passwordHash         String? // Added for Credentials provider
   bio                  String?              // added bio field
+  website              String?              // Added social link fields
+  twitter              String?
+  linkedin             String?
+  github               String?
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
   accounts             Account[] // Added for NextAuth
@@ -33,7 +37,7 @@ model User {
   notifications        Notification[]
   inviterNotifications Notification[]       @relation("InviterNotifications") // Separate relation name
   boardMembers         BoardMember[] // Add this relation
-  auditLogs            AuditLog[] // Add this inverse relation for AuditLog
+  auditLogs            AuditLog[] // User who performed the action
   bannedOrgActions     OrganizationBan[]    @relation("BannedByUsers") // Relation for bans issued by this user
   bannedBoardActions   BoardMember[]        @relation("BannedBoardUsers") // Relation for board bans issued by this user
   postVotes            PostVote[] // Added relation for PostVote
@@ -96,7 +100,7 @@ model Organization {
   updatedAt     DateTime             @updatedAt
   members       OrganizationMember[]
   boards        Board[]
-  auditLogs     AuditLog[]
+  auditLogs     AuditLog[] // Logs related to this organization
   bans          OrganizationBan[] // Added inverse relation for bans
   invites       Invite[]
   notifications Notification[]
@@ -152,7 +156,7 @@ model Board {
   invites        Invite[]
   notifications  Notification[]
   members        BoardMember[] // Add this relation
-  auditLogs      AuditLog[] // Added inverse relation
+  auditLogs      AuditLog[] // Logs related to this board
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
@@ -243,25 +247,27 @@ model CommentVote {
   @@index([commentId])
 }
 
-// Example Audit Log model
+// Refined Audit Log model
 model AuditLog {
-  id             String       @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  boardId        String? // Added: Optional board ID
-  board          Board?       @relation(fields: [boardId], references: [id], onDelete: Cascade) // Added: Optional relation to Board
-  userId         String? // User who performed the action (optional, for system actions)
-  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull) // Relation to User
-  action         String // e.g., "BAN_USER", "CREATE_BOARD", "UPDATE_POST"
-  entityType     String // e.g., "USER", "BOARD", "POST"
-  entityId       String? // ID of the entity affected (e.g., userId, boardId, postId)
-  details        Json? // Additional details about the action (e.g., ban reason, old/new role)
-  createdAt      DateTime     @default(now())
+  id        String   @id @default(cuid())
+  orgId     String?  // Link to organization if action is org-level or board-within-org level
+  boardId   String?  // Link to board if action is board-level
+  userId    String   // ID of the user who performed the action
+  action    String   // e.g., CREATE_BOARD, UPDATE_ORGANIZATION_NAME, ADD_MEMBER, DELETE_POST
+  entityType String  // e.g., BOARD, ORGANIZATION, MEMBER, POST, INVITE
+  entityId  String   // ID of the entity that was affected (e.g., the boardId, organizationId, memberId)
+  entityName String? // Optional: Store the name/title of the entity for easier display (e.g., board name, user name)
+  details   Json?    // Optional: Store additional details like old/new values
+  createdAt DateTime @default(now())
 
-  @@index([organizationId])
-  @@index([boardId]) // Added index
+  organization Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  board        Board?        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt(sort: Desc)]) // Index for fetching org logs sorted by time
+  @@index([boardId, createdAt(sort: Desc)]) // Index for fetching board logs sorted by time
   @@index([userId])
-  @@index([entityType, entityId]) // Added index for easier lookup of actions on specific entities
+  @@index([entityType, entityId])
 }
 
 model Notification {

@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
+import { Globe, Twitter, Linkedin, Github } from 'lucide-react'
 
 interface Board {
   id: string
@@ -30,6 +31,10 @@ interface User {
   followerCount: number // Add followerCount
   followingCount: number // Add followingCount
   isFollowing: boolean // Add isFollowing
+  website?: string | null
+  twitter?: string | null
+  linkedin?: string | null
+  github?: string | null
 }
 
 interface UserProfilePageProps {
@@ -119,6 +124,34 @@ export default function UserProfilePage({ user, createdBoards, memberBoards, cur
               </p>
             </CardContent>
           </Card>
+          {(user.website || user.twitter || user.linkedin || user.github) && (
+            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+              {user.website && (
+                <Link href={user.website} target="_blank" className="flex items-center gap-1">
+                  <Globe className="h-4 w-4" />
+                  <span>Website</span>
+                </Link>
+              )}
+              {user.twitter && (
+                <Link href={`https://twitter.com/${user.twitter}`} target="_blank" className="flex items-center gap-1">
+                  <Twitter className="h-4 w-4" />
+                  <span>@{user.twitter}</span>
+                </Link>
+              )}
+              {user.linkedin && (
+                <Link href={`https://linkedin.com/in/${user.linkedin}`} target="_blank" className="flex items-center gap-1">
+                  <Linkedin className="h-4 w-4" />
+                  <span>{user.linkedin}</span>
+                </Link>
+              )}
+              {user.github && (
+                <Link href={`https://github.com/${user.github}`} target="_blank" className="flex items-center gap-1">
+                  <Github className="h-4 w-4" />
+                  <span>{user.github}</span>
+                </Link>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

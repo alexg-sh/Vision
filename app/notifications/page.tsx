@@ -10,7 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Bell, MessageSquare, ThumbsUp, User, Settings, CheckCheck, Clock, Megaphone, BarChart3, Check, X, Loader2, Building2 } from "lucide-react"; // Added Building2
-import DashboardHeader from "@/components/dashboard-header";
 import { useToast } from "@/hooks/use-toast";
 import { useNotifications } from "@/hooks/use-notifications"; // Import the hook
 
@@ -202,7 +201,6 @@ export default function NotificationsPage() {
   if (error) {
      return (
        <div className="flex min-h-screen flex-col">
-         <DashboardHeader /> {/* Header might still be useful */} 
          <main className="flex-1 container py-6 flex items-center justify-center">
            <Card className="w-full max-w-md text-center">
              <CardHeader>
@@ -316,121 +314,118 @@ export default function NotificationsPage() {
   const currentUnreadCount = notifications.filter((n) => !n.read).length; // Recalculate based on current context state if needed
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <DashboardHeader />
-      <main className="flex-1 container py-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <h1 className="text-3xl font-bold">Notifications</h1>
-              {/* Use unreadCount from hook */} 
-              {unreadCount > 0 && <Badge className="ml-2">{unreadCount} unread</Badge>}
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleMarkAllAsRead} disabled={isMarkingAllRead || unreadCount === 0}>
-                <CheckCheck className="mr-2 h-4 w-4" />
-                {isMarkingAllRead ? "Marking..." : "Mark all as read"}
-              </Button>
-              {/* ... (Settings button remains) ... */}
-              <Button variant="outline" onClick={() => router.push("/settings?tab=notifications")}>
-                <Settings className="mr-2 h-4 w-4" />
-                Notification Settings
-              </Button>
-            </div>
+    <main className="flex-1 container py-6">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-bold">Notifications</h1>
+            {/* Use unreadCount from hook */} 
+            {unreadCount > 0 && <Badge className="ml-2">{unreadCount} unread</Badge>}
           </div>
-
-          <Tabs defaultValue="all" className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="unread">Unread</TabsTrigger>
-              <TabsTrigger value="invites">Invites</TabsTrigger>
-            </TabsList>
-
-            {/* All Notifications Tab */}
-            <TabsContent value="all">
-              <Card>
-                <CardHeader>
-                  <CardTitle>All Notifications</CardTitle>
-                  <CardDescription>View all your recent notifications.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {/* Use isLoading from hook for initial loading state */}
-                  {isLoading && notifications.length === 0 ? (
-                     <div className="text-center py-8">
-                       <Loader2 className="h-12 w-12 mx-auto text-muted-foreground mb-4 animate-spin" />
-                       <p className="text-muted-foreground">Loading...</p>
-                     </div>
-                  ) : notifications.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Bell className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-medium mb-2">No notifications</h3>
-                      <p className="text-muted-foreground">You don't have any notifications yet.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {/* Render notifications from hook */} 
-                      {notifications.map(renderNotification)}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Unread Notifications Tab */}
-            <TabsContent value="unread">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Unread Notifications</CardTitle>
-                  <CardDescription>View your unread notifications.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {/* Filter notifications from hook */} 
-                  {notifications.filter((n) => !n.read).length === 0 ? (
-                    <div className="text-center py-8">
-                      <CheckCheck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-medium mb-2">All caught up!</h3>
-                      <p className="text-muted-foreground">You have no unread notifications.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {notifications
-                        .filter((notification) => !notification.read)
-                        .map(renderNotification)}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-             {/* Invites Tab */}
-            <TabsContent value="invites">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Invitations</CardTitle>
-                  <CardDescription>View your pending and past invitations.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {/* Filter notifications from hook */} 
-                  {notifications.filter(n => n.type === 'INVITE').length === 0 ? (
-                    <div className="text-center py-8">
-                      <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-medium mb-2">No Invitations</h3>
-                      <p className="text-muted-foreground">You haven't received any invitations yet.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {notifications
-                        .filter(notification => notification.type === 'INVITE')
-                        .map(renderNotification)}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-          </Tabs>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleMarkAllAsRead} disabled={isMarkingAllRead || unreadCount === 0}>
+              <CheckCheck className="mr-2 h-4 w-4" />
+              {isMarkingAllRead ? "Marking..." : "Mark all as read"}
+            </Button>
+            {/* ... (Settings button remains) ... */}
+            <Button variant="outline" onClick={() => router.push("/settings?tab=notifications")}>
+              <Settings className="mr-2 h-4 w-4" />
+              Notification Settings
+            </Button>
+          </div>
         </div>
-      </main>
-    </div>
+
+        <Tabs defaultValue="all" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="unread">Unread</TabsTrigger>
+            <TabsTrigger value="invites">Invites</TabsTrigger>
+          </TabsList>
+
+          {/* All Notifications Tab */}
+          <TabsContent value="all">
+            <Card>
+              <CardHeader>
+                <CardTitle>All Notifications</CardTitle>
+                <CardDescription>View all your recent notifications.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* Use isLoading from hook for initial loading state */}
+                {isLoading && notifications.length === 0 ? (
+                   <div className="text-center py-8">
+                     <Loader2 className="h-12 w-12 mx-auto text-muted-foreground mb-4 animate-spin" />
+                     <p className="text-muted-foreground">Loading...</p>
+                   </div>
+                ) : notifications.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Bell className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium mb-2">No notifications</h3>
+                    <p className="text-muted-foreground">You don't have any notifications yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Render notifications from hook */} 
+                    {notifications.map(renderNotification)}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Unread Notifications Tab */}
+          <TabsContent value="unread">
+            <Card>
+              <CardHeader>
+                <CardTitle>Unread Notifications</CardTitle>
+                <CardDescription>View your unread notifications.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* Filter notifications from hook */} 
+                {notifications.filter((n) => !n.read).length === 0 ? (
+                  <div className="text-center py-8">
+                    <CheckCheck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium mb-2">All caught up!</h3>
+                    <p className="text-muted-foreground">You have no unread notifications.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {notifications
+                      .filter((notification) => !notification.read)
+                      .map(renderNotification)}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+           {/* Invites Tab */}
+          <TabsContent value="invites">
+            <Card>
+              <CardHeader>
+                <CardTitle>Invitations</CardTitle>
+                <CardDescription>View your pending and past invitations.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* Filter notifications from hook */} 
+                {notifications.filter(n => n.type === 'INVITE').length === 0 ? (
+                  <div className="text-center py-8">
+                    <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium mb-2">No Invitations</h3>
+                    <p className="text-muted-foreground">You haven't received any invitations yet.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {notifications
+                      .filter(notification => notification.type === 'INVITE')
+                      .map(renderNotification)}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+        </Tabs>
+      </div>
+    </main>
   );
 }

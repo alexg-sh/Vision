@@ -101,22 +101,22 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
   const [organization, setOrganization] = useState<OrganizationDetails | null>(null)
   const [members, setMembers] = useState<OrganizationMember[]>([])
   const [activeMembers, setActiveMembers] = useState<OrganizationMember[]>([])
-  const [bannedMembers, setBannedMembers] = useState<OrganizationMember[]>([])
   const [bannedUsers, setBannedUsers] = useState<any[]>([]);
 
   const [isEditing, setIsEditing] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isFetching, setIsFetching] = useState(true)
+  const [isListLoading, setIsListLoading] = useState(false);
   const [error, setError] = useState<string | null>(null)
 
   // State for dialogs
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false)
-  const [inviteUsername, setInviteUsername] = useState(""); // Changed from inviteEmail
+  const [inviteUsername, setInviteUsername] = useState("");
   const [banReason, setBanReason] = useState("");
   const [memberToBan, setMemberToBan] = useState<OrganizationMember | null>(null);
   const [isBanConfirmOpen, setIsBanConfirmOpen] = useState(false);
-  const [isUnbanning, setIsUnbanning] = useState<string | null>(null); // Track unbanning state per user
+  const [isUnbanning, setIsUnbanning] = useState<string | null>(null);
 
   // Form state for editing org details
   const [editedName, setEditedName] = useState("")
@@ -124,89 +124,91 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
   const [editedImageUrl, setEditedImageUrl] = useState("")
   const [editedIsPrivate, setEditedIsPrivate] = useState(false)
 
-  // Fetch organization details
-  useEffect(() => {
-    const fetchOrganization = async () => {
-      if (!organizationId) return;
-      setIsFetching(true);
-      setError(null);
-      try {
-        const response = await fetch(`/api/organization/${organizationId}`);
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || "Failed to fetch organization details.");
-        }
-        const data: OrganizationDetails = await response.json();
-        setOrganization(data);
-        // Initialize edit form state
-        setEditedName(data.name);
-        setEditedDescription(data.description || "");
-        setEditedImageUrl(data.imageUrl || "");
-        setEditedIsPrivate(data.isPrivate);
-      } catch (err: any) {
-        setError(err.message);
-        toast.error(err.message || "Error fetching organization details.");
-        // Redirect if not found or forbidden
-        if (err.message.includes("not found") || err.message.includes("Forbidden")) {
-          router.push("/dashboard");
-        }
-      } finally {
-        setIsFetching(false);
-      }
-    };
-    fetchOrganization();
-  }, [organizationId, router]);
+  // --- Consolidated Fetching Functions ---
 
-  // Fetch organization members
-  useEffect(() => {
-    const fetchMembers = async () => {
-      if (!organizationId) return;
-      // No need to set fetching state here, handled by org fetch
-      try {
-        const response = await fetch(`/api/organization/${organizationId}/members`);
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || "Failed to fetch members.");
-        }
-        const data: OrganizationMember[] = await response.json();
-        setMembers(data);
-        setActiveMembers(data.filter(m => m.status === 'ACTIVE'));
-        setBannedMembers(data.filter(m => m.status === 'BANNED'));
-      } catch (err: any) {
-        // Don't overwrite org fetch error
-        if (!error) setError(err.message);
-        toast.error(err.message || "Error fetching members.");
+  const fetchOrganizationDetails = async () => {
+    if (!organizationId) return false;
+    setIsFetching(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/organization/${organizationId}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to fetch organization details.");
       }
-    };
-    // Fetch members only after org details are fetched (and user role is confirmed)
-    if (organization) {
-        fetchMembers();
-        fetchBannedUsers(); // Fetch banned users after org details are available
+      const data: OrganizationDetails = await response.json();
+      setOrganization(data);
+      // Initialize edit form state
+      setEditedName(data.name);
+      setEditedDescription(data.description || "");
+      setEditedImageUrl(data.imageUrl || "");
+      setEditedIsPrivate(data.isPrivate);
+      return true;
+    } catch (err: any) {
+      setError(err.message);
+      toast.error(err.message || "Error fetching organization details.");
+      if (err.message.includes("not found") || err.message.includes("Forbidden")) {
+        router.push("/dashboard");
+      }
+      return false;
+    } finally {
+      setIsFetching(false);
     }
-  }, [organizationId, organization, error]); // Re-fetch if org changes or initial error clears
+  };
 
-  // Fetch banned users
-  useEffect(() => {
-    const fetchBannedUsers = async () => {
-      if (!organizationId) return;
-      try {
-        const response = await fetch(`/api/organization/${organizationId}/bans`);
-        if (!response.ok) throw new Error('Failed to fetch banned users');
-        const data = await response.json();
-        setBannedUsers(data);
-      } catch (err: any) {
-        toast.error(err.message || 'Error fetching banned users.');
+  const fetchMembers = async () => {
+    if (!organizationId) return;
+    setIsListLoading(true);
+    try {
+      const response = await fetch(`/api/organization/${organizationId}/members`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to fetch members.");
       }
-    };
-    fetchBannedUsers();
+      const data: OrganizationMember[] = await response.json();
+      setMembers(data);
+      setActiveMembers(data.filter(m => m.status === 'ACTIVE'));
+    } catch (err: any) {
+      toast.error(err.message || "Error fetching members list.");
+    } finally {
+      setIsListLoading(false);
+    }
+  };
+
+  const fetchBannedUsers = async () => {
+    if (!organizationId) return;
+    setIsListLoading(true);
+    try {
+      const response = await fetch(`/api/organization/${organizationId}/bans`);
+      if (!response.ok) throw new Error('Failed to fetch banned users');
+      const data = await response.json();
+      setBannedUsers(data);
+    } catch (err: any) {
+      toast.error(err.message || 'Error fetching banned users.');
+    } finally {
+      setIsListLoading(false);
+    }
+  };
+
+  // --- useEffect Hooks ---
+
+  useEffect(() => {
+    fetchOrganizationDetails();
   }, [organizationId]);
+
+  useEffect(() => {
+    if (organization && organization.userRole === 'ADMIN') {
+      fetchMembers();
+      fetchBannedUsers();
+    }
+  }, [organization]);
 
   // Derived state for current user
   const currentUserMemberInfo = members.find(m => m.userId === session?.user?.id);
-  const currentUserRole = organization?.userRole; // Use role from organization fetch
+  const currentUserRole = organization?.userRole;
   const isAdmin = currentUserRole === 'ADMIN';
 
-  // --- Handler Functions (to be implemented) ---
+  // --- Handler Functions ---
 
   const handleSaveSettings = async () => {
     if (!organization) return;
@@ -228,7 +230,7 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
         throw new Error(errorData.message || 'Failed to update settings');
       }
       const updatedOrg = await response.json();
-      setOrganization(updatedOrg); // Update local state with response
+      setOrganization(updatedOrg);
       setIsEditing(false);
       toast.success("Organization settings updated successfully!");
     } catch (err: any) {
@@ -257,20 +259,19 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
     } catch (err: any) {
       setError(err.message);
       toast.error(err.message || "Error deleting organization.");
-      setIsLoading(false); // Stop loading only on error
+      setIsLoading(false);
     }
-    // No finally block needed if redirecting on success
   };
 
   const handleInviteUser = async () => {
-    if (inviteUsername.trim() && organization) { // Changed from inviteEmail
+    if (inviteUsername.trim() && organization) {
       setIsLoading(true);
       try {
         const response = await fetch(`/api/invites`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            username: inviteUsername, // Changed from email
+            username: inviteUsername,
             organizationId: organization.id
           }),
         });
@@ -281,14 +282,11 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
           throw new Error(responseData.message || 'Failed to send invite');
         }
 
-        // Use toast.success for success messages with sonner
-        toast.success(responseData.message || `Invitation sent to ${inviteUsername}`); // Changed from inviteEmail
-        setInviteUsername(""); // Changed from setInviteEmail
+        toast.success(responseData.message || `Invitation sent to ${inviteUsername}`);
+        setInviteUsername("");
         setIsInviteDialogOpen(false);
-        // Optionally re-fetch members or invites if needed
       } catch (error: any) {
         console.error("Error sending invite:", error);
-        // Use toast.error for error messages
         toast.error(error?.message || "Could not send the invitation.");
       } finally {
         setIsLoading(false);
@@ -297,9 +295,9 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
   };
 
   const handleChangeRole = async (targetUserId: string, newRole: string) => {
-    if (!organization || !isAdmin || currentUserMemberInfo?.userId === targetUserId) return; // Prevent self-role change here
+    if (!organization || !isAdmin || currentUserMemberInfo?.userId === targetUserId) return;
 
-    setIsLoading(true); // Consider member-specific loading state if needed
+    setIsListLoading(true);
     try {
       const response = await fetch(`/api/organization/${organization.id}/members/${targetUserId}`, {
         method: 'PATCH',
@@ -310,27 +308,21 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to change role');
       }
-      const updatedMember: OrganizationMember = await response.json();
-      // Update local state
-      setMembers(prev => prev.map(m => m.userId === targetUserId ? updatedMember : m));
-      setActiveMembers(prev => prev.map(m => m.userId === targetUserId ? updatedMember : m));
-      toast.success(`Role for ${updatedMember.user.name} updated to ${newRole}.`);
+      await fetchMembers();
+      toast.success(`Role updated to ${newRole}.`);
     } catch (err: any) {
       toast.error(err.message || "Error changing role.");
-    } finally {
-      setIsLoading(false);
+      setIsListLoading(false);
     }
   };
 
   const handleRemoveUser = async (targetUserId: string) => {
-    if (!organization || !isAdmin || currentUserMemberInfo?.userId === targetUserId) return; // Prevent self-removal here
+    if (!organization || !isAdmin || currentUserMemberInfo?.userId === targetUserId) return;
 
     const memberToRemove = members.find(m => m.userId === targetUserId);
     if (!memberToRemove) return;
 
-    // Optional: Add confirmation dialog here
-
-    setIsLoading(true);
+    setIsListLoading(true);
     try {
       const response = await fetch(`/api/organization/${organization.id}/members/${targetUserId}`, {
         method: 'DELETE',
@@ -339,30 +331,28 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to remove member');
       }
-      // Update local state
-      setMembers(prev => prev.filter(m => m.userId !== targetUserId));
-      setActiveMembers(prev => prev.filter(m => m.userId !== targetUserId));
-      setBannedMembers(prev => prev.filter(m => m.userId !== targetUserId)); // Also remove if they were banned
+      await fetchMembers();
+      await fetchBannedUsers();
       toast.success(`${memberToRemove.user.name || 'Member'} removed from the organization.`);
     } catch (err: any) {
       toast.error(err.message || "Error removing member.");
-    } finally {
-      setIsLoading(false);
+      setIsListLoading(false);
     }
   };
 
   const openBanConfirmation = (member: OrganizationMember) => {
     if (!isAdmin || currentUserMemberInfo?.userId === member.userId) return;
     setMemberToBan(member);
-    setBanReason(""); // Reset reason
+    setBanReason("");
     setIsBanConfirmOpen(true);
   };
 
   const handleBanUser = async () => {
     if (!organization || !isAdmin || !memberToBan || currentUserMemberInfo?.userId === memberToBan.userId) return;
 
-    setIsLoading(true);
-    setIsBanConfirmOpen(false); // Close confirmation dialog
+    setIsListLoading(true);
+    setIsBanConfirmOpen(false);
+    const memberName = memberToBan.user.name || 'Member';
     try {
       const response = await fetch(`/api/organization/${organization.id}/members/${memberToBan.userId}`, {
         method: 'PATCH',
@@ -373,96 +363,46 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to ban member');
       }
-      const updatedMember: OrganizationMember = await response.json();
-      // Update local state
-      setMembers(prev => prev.map(m => m.userId === memberToBan.userId ? updatedMember : m));
-      setActiveMembers(prev => prev.filter(m => m.userId !== memberToBan.userId));
-      setBannedMembers(prev => [...prev, updatedMember]);
-      toast.success(`${memberToBan.user.name || 'Member'} has been banned.`);
-      setMemberToBan(null); // Clear selected member
+      await fetchMembers();
+      await fetchBannedUsers();
+      toast.success(`${memberName} has been banned.`);
+      setMemberToBan(null);
     } catch (err: any) {
       toast.error(err.message || "Error banning member.");
-    } finally {
-      setIsLoading(false);
+      setIsListLoading(false);
     }
   };
 
   const handleUnbanUser = async (targetUserId: string) => {
     if (!organization || !isAdmin) return;
 
-    const memberToUnban = bannedUsers.find(m => m.userId === targetUserId);
-    if (!memberToUnban) {
+    const userToUnban = bannedUsers.find(u => u.userId === targetUserId);
+    if (!userToUnban) {
       toast.error("Could not find the user in the banned list.");
       return;
     }
 
-    setIsUnbanning(targetUserId); // Set loading state for this user
+    setIsUnbanning(targetUserId);
+    setIsListLoading(true);
     try {
       const response = await fetch(`/api/organization/${organization.id}/bans/${targetUserId}`, {
-        method: 'DELETE', // Use DELETE method
+        method: 'DELETE',
       });
 
-      const responseData = await response.json(); // Parse JSON regardless of status
+      const responseData = await response.json();
 
       if (!response.ok) {
         throw new Error(responseData.message || 'Failed to unban member');
       }
 
-      // Use toast.success for success messages with sonner
       toast.success(responseData.message || "User successfully unbanned.");
-
-      // Update local state instead of refreshing
-      setBannedUsers(prev => prev.filter(user => user.userId !== targetUserId));
-      // Optionally, if the API also reactivates the member record, update activeMembers
-      // This depends on the API behavior. The current DELETE endpoint updates the member status.
-      // We need to fetch the updated member details or assume they are now 'ACTIVE'.
-      // For simplicity, let's just remove from banned list. A refresh might still be needed
-      // if the user should immediately appear in the 'Active Members' list with full details.
-      // Consider fetching members again or adding a simplified entry to activeMembers.
-
-      // Let's try refetching members to update both lists accurately without full page reload
-      fetchMembers(); // Assuming fetchMembers updates both active and banned lists
-
+      await fetchMembers();
+      await fetchBannedUsers();
     } catch (err: any) {
-      // Use toast.error for error messages and optional chaining
       toast.error(err?.message || "Could not unban the user.");
     } finally {
-      setIsUnbanning(null); // Clear loading state
-    }
-  };
-
-  // Add fetchMembers function reference if it's not already in scope
-  // Ensure fetchMembers is defined within the component or passed as a prop
-  // and that it updates both activeMembers and bannedMembers states.
-  const fetchMembers = async () => {
-    if (!organizationId) return;
-    try {
-      const response = await fetch(`/api/organization/${organizationId}/members`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to fetch members.");
-      }
-      const data: OrganizationMember[] = await response.json();
-      setMembers(data);
-      setActiveMembers(data.filter(m => m.status === 'ACTIVE'));
-      setBannedMembers(data.filter(m => m.status === 'BANNED')); // This state seems unused, maybe meant bannedUsers?
-      // Let's assume bannedUsers is fetched separately from /bans endpoint
-      // If the unban API updates the member record status, fetching members should suffice.
-    } catch (err: any) {
-      toast.error(err.message || "Error refreshing members list.");
-    }
-  };
-
-  // Fetch banned users (ensure this is defined and used)
-  const fetchBannedUsers = async () => {
-    if (!organizationId) return;
-    try {
-      const response = await fetch(`/api/organization/${organizationId}/bans`);
-      if (!response.ok) throw new Error('Failed to fetch banned users');
-      const data = await response.json();
-      setBannedUsers(data);
-    } catch (err: any) {
-      toast.error(err.message || 'Error fetching banned users.');
+      setIsUnbanning(null);
+      setIsListLoading(false);
     }
   };
 
@@ -530,7 +470,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
     );
   }
 
-  // --- JSX --- (To be updated in the next step)
   return (
     <div className="flex min-h-screen flex-col">
       <DashboardHeader />
@@ -545,7 +484,7 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
             <TabsList className="grid w-full grid-cols-4 mb-6">
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="members">Members ({activeMembers.length})</TabsTrigger>
-              <TabsTrigger value="banned">Banned ({bannedMembers.length})</TabsTrigger>
+              <TabsTrigger value="banned">Banned ({bannedUsers.length})</TabsTrigger>
               <TabsTrigger value="danger">Danger Zone</TabsTrigger>
             </TabsList>
 
@@ -567,7 +506,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                         if (isEditing) {
                           handleSaveSettings();
                         } else {
-                          // Reset form to current org state before editing
                           setEditedName(organization.name);
                           setEditedDescription(organization.description || "");
                           setEditedImageUrl(organization.imageUrl || "");
@@ -597,11 +535,11 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                     <div className="flex flex-col items-center gap-4">
                       <div className="relative h-32 w-32 rounded-lg overflow-hidden border">
                         <Image
-                          src={editedImageUrl || "/placeholder.svg"} // Use edited state
-                          alt={editedName} // Use edited state
+                          src={editedImageUrl || "/placeholder.svg"}
+                          alt={editedName}
                           fill
                           className="object-cover"
-                          onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }} // Fallback image
+                          onError={(e) => { e.currentTarget.src = '/placeholder.svg'; }}
                         />
                       </div>
                       {isEditing && (
@@ -609,7 +547,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                           <Upload className="h-4 w-4" />
                           Change Image (WIP)
                         </Button>
-                        // TODO: Implement image upload functionality
                       )}
                     </div>
                     <div className="flex-1 space-y-4">
@@ -617,7 +554,7 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                         <Label htmlFor="org-name">Organization name</Label>
                         <Input
                           id="org-name"
-                          value={editedName} // Use edited state
+                          value={editedName}
                           onChange={(e) => setEditedName(e.target.value)}
                           disabled={!isEditing || isLoading}
                         />
@@ -626,7 +563,7 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                         <Label htmlFor="org-description">Description</Label>
                         <Textarea
                           id="org-description"
-                          value={editedDescription} // Use edited state
+                          value={editedDescription}
                           onChange={(e) => setEditedDescription(e.target.value)}
                           disabled={!isEditing || isLoading}
                           rows={4}
@@ -635,7 +572,7 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                       <div className="flex items-center space-x-2">
                         <Switch
                           id="private-mode"
-                          checked={editedIsPrivate} // Use edited state
+                          checked={editedIsPrivate}
                           onCheckedChange={setEditedIsPrivate}
                           disabled={!isEditing || isLoading}
                         />
@@ -677,7 +614,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                       <CardTitle>Active Members</CardTitle>
                       <CardDescription>Manage members and their roles within the organization.</CardDescription>
                     </div>
-                    {/* TODO: Implement Invite functionality - Removing WIP */}
                     <Button variant="outline" onClick={() => setIsInviteDialogOpen(true)} disabled={isLoading}>
                       <UserPlus className="mr-2 h-4 w-4" />
                       Invite Members
@@ -685,7 +621,11 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {activeMembers.length === 0 ? (
+                  {isListLoading ? (
+                     <div className="flex justify-center items-center py-8">
+                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                     </div>
+                  ) : activeMembers.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <p>No active members found (besides potentially yourself).</p>
                     </div>
@@ -700,7 +640,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                               <AvatarFallback>{member.user?.name?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
                             </Avatar>
                             <div>
-                              {/* Change p to div to allow nesting Badge (which renders a div) */}
                               <div className="font-medium flex items-center gap-2">
                                 {member.user.name || 'Unnamed User'}
                                 {member.userId === session?.user?.id && <Badge variant="secondary">You</Badge>}
@@ -719,20 +658,20 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                             {isAdmin && member.userId !== session?.user?.id && (
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" disabled={isLoading}>
+                                  <Button variant="ghost" size="icon" disabled={isListLoading}>
                                     <MoreHorizontal className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem
                                     onSelect={() => handleChangeRole(member.userId, "ADMIN")}
-                                    disabled={member.role === "ADMIN" || isLoading}
+                                    disabled={member.role === "ADMIN" || isListLoading}
                                   >
                                     Make Admin
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
                                     onSelect={() => handleChangeRole(member.userId, "MEMBER")}
-                                    disabled={member.role === "MEMBER" || isLoading}
+                                    disabled={member.role === "MEMBER" || isListLoading}
                                   >
                                     Make Member
                                   </DropdownMenuItem>
@@ -740,7 +679,7 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                                   <DropdownMenuItem
                                     onSelect={() => handleRemoveUser(member.userId)}
                                     className="text-destructive focus:text-destructive"
-                                    disabled={isLoading}
+                                    disabled={isListLoading}
                                   >
                                     <UserMinus className="mr-2 h-4 w-4" />
                                     Remove from Organization
@@ -748,7 +687,7 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                                   <DropdownMenuItem
                                     onSelect={() => openBanConfirmation(member)}
                                     className="text-destructive focus:text-destructive"
-                                    disabled={isLoading}
+                                    disabled={isListLoading}
                                   >
                                     <Ban className="mr-2 h-4 w-4" />
                                     Ban User
@@ -773,7 +712,11 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                   <CardDescription>Users who are banned from this organization.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {bannedUsers.length === 0 ? (
+                  {isListLoading ? (
+                     <div className="flex justify-center items-center py-8">
+                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                     </div>
+                  ) : bannedUsers.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <p>No banned users</p>
                     </div>
@@ -795,13 +738,12 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                           </div>
                           <div className="flex items-center gap-2">
                              {ban.banReason && <p className="text-xs text-muted-foreground italic">Reason: {ban.banReason}</p>}
-                             {/* Unban Button */}
                              {isAdmin && (
                                <Button
                                  variant="outline"
                                  size="sm"
                                  onClick={() => handleUnbanUser(ban.userId)}
-                                 disabled={isUnbanning === ban.userId} // Disable button if this user is being unbanned
+                                 disabled={isUnbanning === ban.userId || isListLoading}
                                >
                                  {isUnbanning === ban.userId ? (
                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -828,7 +770,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {/* Transfer Ownership - Placeholder */}
                   <div className="space-y-2 p-4 border border-dashed rounded-lg">
                     <h3 className="text-lg font-medium">Transfer Ownership</h3>
                     <p className="text-sm text-muted-foreground">
@@ -839,7 +780,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
 
                   <Separator />
 
-                  {/* Delete Organization */}
                   <div className="space-y-2 p-4 border border-destructive rounded-lg bg-destructive/5">
                     <h3 className="text-lg font-medium text-destructive">Delete Organization</h3>
                     <p className="text-sm text-muted-foreground">
@@ -865,7 +805,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                           id="confirm-delete-input"
                           placeholder={organization.name}
                           onChange={(e) => {
-                            // Basic confirmation check
                             const confirmButton = document.getElementById('confirm-delete-button') as HTMLButtonElement | null;
                             if (confirmButton) {
                               confirmButton.disabled = e.target.value !== organization.name;
@@ -877,7 +816,7 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
                           <AlertDialogAction
                             id="confirm-delete-button"
                             onClick={handleDeleteOrganization}
-                            disabled // Initially disabled
+                            disabled
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                           >
                             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -892,9 +831,8 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
             </TabsContent>
           </Tabs>
         </div>
-      </main> {/* Ensure main tag is closed correctly */}
+      </main>
 
-      {/* Invite Dialog */}
       <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -904,14 +842,13 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-             {/* Use Label component */}
             <Label htmlFor="invite-username">Username</Label>
             <Input
-              id="invite-username" // Changed id
-              type="text" // Changed type
-              placeholder="username" // Changed placeholder
-              value={inviteUsername} // Changed value
-              onChange={(e) => setInviteUsername(e.target.value)} // Changed handler
+              id="invite-username"
+              type="text"
+              placeholder="username"
+              value={inviteUsername}
+              onChange={(e) => setInviteUsername(e.target.value)}
               disabled={isLoading}
             />
           </div>
@@ -919,7 +856,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
             <Button variant="outline" onClick={() => setIsInviteDialogOpen(false)} disabled={isLoading}>
               Cancel
             </Button>
-            {/* Changed button text and check */}
             <Button onClick={handleInviteUser} disabled={isLoading || !inviteUsername.trim()}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Send Invite
@@ -928,7 +864,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
         </DialogContent>
       </Dialog>
 
-      {/* Ban Confirmation Dialog */}
       <AlertDialog open={isBanConfirmOpen} onOpenChange={setIsBanConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

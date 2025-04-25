@@ -24,7 +24,6 @@ import {
   MessageCircle,
   UserPlus,
   LayoutDashboard,
-  LayoutGrid,
   Compass,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -187,13 +186,6 @@ export default function DashboardHeader() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Link
-              href="/boards"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
-            >
-              <LayoutGrid className="h-4 w-4" />
-              <span>Boards</span>
-            </Link>
             <Link
               href="/discover"
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"

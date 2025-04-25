@@ -5,10 +5,11 @@ export async function GET(req: Request) {
   try {
     const boards = await prisma.board.findMany({
       where: {
-        isPrivate: false, // Only fetch public boards
-        organization: {
-          isPrivate: false, // Ensure the parent organization is also public
-        },
+        isPrivate: false,
+        OR: [
+          { organization: { isPrivate: false } }, // public org boards
+          { organizationId: null }               // public personal boards
+        ],
       },
       select: {
         id: true,

@@ -16,6 +16,10 @@ export default async function UserProfile({ params }: { params: Promise<{ userna
       name: true,
       image: true,
       bio: true,
+      website: true,
+      twitter: true,
+      linkedin: true,
+      github: true,
       createdAt: true,
       updatedAt: true,
       _count: {
@@ -68,6 +72,10 @@ export default async function UserProfile({ params }: { params: Promise<{ userna
         followerCount: user._count.followers,
         followingCount: user._count.following,
         isFollowing,
+        website: user.website,
+        twitter: user.twitter,
+        linkedin: user.linkedin,
+        github: user.github,
       }}
       createdBoards={user.createdBoards}
       memberBoards={memberBoards}

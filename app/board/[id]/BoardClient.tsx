@@ -53,7 +53,6 @@ import {
   PieChart,
   Loader2,
 } from "lucide-react"
-import DashboardHeader from "@/components/dashboard-header"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import ReactMarkdown from "react-markdown"
@@ -261,6 +260,10 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
     return [...posts];
   }, [posts]);
 
+  const navigateToSettings = () => {
+    router.push(`/board/${board.id}/settings?userRole=${userRole}`)
+  }
+
   const renderPostCard = (post: PostWithClientData) => (
     <Card key={post.id} className="mb-4 overflow-hidden relative">
       {canManageBoard && (
@@ -387,162 +390,159 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
   )
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <DashboardHeader />
-      <main className="flex-1 container py-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
-              <Megaphone className="h-6 w-6 text-muted-foreground" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold">{board.name}</h1>
-              <p className="text-muted-foreground">Welcome to the {board.name} board.</p>
-            </div>
+    <main className="flex-1 container py-6">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-4">
+          <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center">
+            <Megaphone className="h-6 w-6 text-muted-foreground" />
           </div>
-          <div className="flex items-center space-x-2">
-            {canCreatePost && (
-              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <div>
+            <h1 className="text-2xl font-bold">{board.name}</h1>
+            <p className="text-muted-foreground">Welcome to the {board.name} board.</p>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          {canCreatePost && (
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" /> Create Post
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>New Post</DialogTitle>
+                  <DialogDescription>Use markdown to format content, include image URLs.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="new-post-title">Title *</Label>
+                    <Input
+                      id="new-post-title"
+                      value={newPostTitle}
+                      onChange={(e) => setNewPostTitle(e.target.value)}
+                      disabled={isCreatingPost}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-post-content">Content (Markdown)</Label>
+                    <Textarea
+                      id="new-post-content"
+                      value={newPostContent}
+                      onChange={(e) => setNewPostContent(e.target.value)}
+                      disabled={isCreatingPost}
+                      rows={6}
+                    />
+                  </div>
+                  {newPostContent && (
+                    <div className="border p-4 rounded-md">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{newPostContent}</ReactMarkdown>
+                    </div>
+                  )}
+                  {createError && <p className="text-sm text-destructive">Error: {createError}</p>}
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsCreateDialogOpen(false)}
+                    disabled={isCreatingPost}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={submitNewPost} disabled={isCreatingPost}>
+                    {isCreatingPost ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    {isCreatingPost ? "Posting..." : "Post"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+          {canManageBoard && (
+            <>
+              <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="mr-2 h-4 w-4" /> Create Post
+                  <Button variant="outline">
+                    <UserPlus className="mr-2 h-4 w-4" /> Invite
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>New Post</DialogTitle>
-                    <DialogDescription>Use markdown to format content, include image URLs.</DialogDescription>
+                    <DialogTitle>Invite Members</DialogTitle>
+                    <DialogDescription>Invite new members to collaborate on this board.</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
-                      <Label htmlFor="new-post-title">Title *</Label>
-                      <Input
-                        id="new-post-title"
-                        value={newPostTitle}
-                        onChange={(e) => setNewPostTitle(e.target.value)}
-                        disabled={isCreatingPost}
-                      />
+                      <Label htmlFor="invite-email">Email Address</Label>
+                      <Input id="invite-email" type="email" placeholder="member@example.com" />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="new-post-content">Content (Markdown)</Label>
-                      <Textarea
-                        id="new-post-content"
-                        value={newPostContent}
-                        onChange={(e) => setNewPostContent(e.target.value)}
-                        disabled={isCreatingPost}
-                        rows={6}
-                      />
-                    </div>
-                    {newPostContent && (
-                      <div className="border p-4 rounded-md">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{newPostContent}</ReactMarkdown>
-                      </div>
-                    )}
-                    {createError && <p className="text-sm text-destructive">Error: {createError}</p>}
                   </div>
                   <DialogFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsCreateDialogOpen(false)}
-                      disabled={isCreatingPost}
-                    >
+                    <Button variant="outline" onClick={() => setIsInviteDialogOpen(false)}>
                       Cancel
                     </Button>
-                    <Button onClick={submitNewPost} disabled={isCreatingPost}>
-                      {isCreatingPost ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                      {isCreatingPost ? "Posting..." : "Post"}
-                    </Button>
+                    <Button>Send Invite</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-            )}
-            {canManageBoard && (
-              <>
-                <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline">
-                      <UserPlus className="mr-2 h-4 w-4" /> Invite
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Invite Members</DialogTitle>
-                      <DialogDescription>Invite new members to collaborate on this board.</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="invite-email">Email Address</Label>
-                        <Input id="invite-email" type="email" placeholder="member@example.com" />
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsInviteDialogOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button>Send Invite</Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => router.push(`/board/${board.id}/settings`)}
-                >
-                  <Settings className="h-4 w-4" />
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-        {canManageBoard && selectedPostIds.size > 0 && (
-          <BulkActionsToolbar
-            selectedCount={selectedPostIds.size}
-            onClearSelection={() => setSelectedPostIds(new Set())}
-            onDelete={handleBulkDelete}
-            isDeleting={isBulkDeleting}
-          />
-        )}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-          <TabsList>
-            <TabsTrigger value="all">All Posts</TabsTrigger>
-            <TabsTrigger value="popular">Popular</TabsTrigger>
-            <TabsTrigger value="newest">Newest</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        <div>
-          {displayedPosts.length > 0 ? (
-            displayedPosts.map(renderPostCard)
-          ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <p>No posts yet.</p>
-              {canCreatePost && <p>Be the first to create one!</p>}
-            </div>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={navigateToSettings}
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+            </>
           )}
         </div>
-        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the post
-                &quot;{postToDelete?.title}&quot;.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmDeletePost}
-                className={cn(
-                  buttonVariants({ variant: "destructive" }),
-                  "bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                )}
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </main>
-    </div>
+      </div>
+      {canManageBoard && selectedPostIds.size > 0 && (
+        <BulkActionsToolbar
+          selectedCount={selectedPostIds.size}
+          onClearSelection={() => setSelectedPostIds(new Set())}
+          onDelete={handleBulkDelete}
+          isDeleting={isBulkDeleting}
+        />
+      )}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
+        <TabsList>
+          <TabsTrigger value="all">All Posts</TabsTrigger>
+          <TabsTrigger value="popular">Popular</TabsTrigger>
+          <TabsTrigger value="newest">Newest</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      <div>
+        {displayedPosts.length > 0 ? (
+          displayedPosts.map(renderPostCard)
+        ) : (
+          <div className="text-center py-12 text-muted-foreground">
+            <p>No posts yet.</p>
+            {canCreatePost && <p>Be the first to create one!</p>}
+          </div>
+        )}
+      </div>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the post
+              &quot;{postToDelete?.title}&quot;.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeletePost}
+              className={cn(
+                buttonVariants({ variant: "destructive" }),
+                "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              )}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </main>
   )
 }

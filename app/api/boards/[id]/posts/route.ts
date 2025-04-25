@@ -2,9 +2,11 @@ import { NextResponse, NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { prisma } from '@/lib/prisma'
-import type { Post, User, PostVote } from '@prisma/client'
+// Import specific types from Prisma Client
+import { Post, User, PostVote } from '@prisma/client'
 
 // Define the structure of the post object returned by the query
+// Use imported model types directly
 type PostWithDetails = Post & {
   author: Pick<User, 'id' | 'name' | 'image'>;
   _count: {

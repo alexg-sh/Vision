@@ -1,19 +1,20 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { NextResponse } from 'next/server';
 
 interface RouteContext {
-  params: { id: string };
+  params: Promise<{ id: string }>; // Corrected: params can be a Promise
 }
 
 export async function GET(_req: Request, { params }: RouteContext) {
+  const resolvedParams = await params; // Await params before accessing properties
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
   const board = await prisma.board.findUnique({
-    where: { id: params.id },
+    where: { id: resolvedParams.id }, // Use resolvedParams.id
     select: {
       id: true,
       name: true,
@@ -29,6 +30,7 @@ export async function GET(_req: Request, { params }: RouteContext) {
 }
 
 export async function PUT(req: Request, { params }: RouteContext) {
+  const resolvedParams = await params; // Await params before accessing properties
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
@@ -39,7 +41,7 @@ export async function PUT(req: Request, { params }: RouteContext) {
   }
   try {
     const updated = await prisma.board.update({
-      where: { id: params.id },
+      where: { id: resolvedParams.id }, // Use resolvedParams.id
       data: {
         name: name.trim(),
         description: description ?? null,

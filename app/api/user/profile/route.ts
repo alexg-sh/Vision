@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth';
+import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 export async function GET(request: NextRequest) {
@@ -21,9 +21,15 @@ export async function GET(request: NextRequest) {
       where: { id: targetUserId },
       select: {
         id: true,
+        username: true,
         name: true,
         email: true, // Be cautious about exposing email publicly if not intended
         image: true,
+        bio: true,
+        website: true,
+        twitter: true,
+        linkedin: true,
+        github: true,
         // Add any other public profile fields you want to expose
         // Exclude sensitive fields like passwordHash
       },
@@ -47,14 +53,19 @@ export async function PUT(request: NextRequest) {
   }
   const userId = session.user.id;
   const body = await request.json();
-  const { bio, name, avatar, ...rest } = body;
+  const { username, name, bio, avatar, website, twitter, linkedin, github } = body;
   try {
     const updated = await prisma.user.update({
       where: { id: userId },
       data: {
-        bio,
+        username,
         name,
+        bio,
         image: avatar,
+        website,
+        twitter,
+        linkedin,
+        github,
         // allow updating other safe fields if needed
       },
       select: {
@@ -63,6 +74,10 @@ export async function PUT(request: NextRequest) {
         name: true,
         image: true,
         bio: true,
+        website: true,
+        twitter: true,
+        linkedin: true,
+        github: true,
         createdAt: true,
         updatedAt: true,
         _count: { select: { followers: true, following: true } }

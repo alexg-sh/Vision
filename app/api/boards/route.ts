@@ -21,15 +21,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'Board name is required' }, { status: 400 });
     }
 
-    const newBoard = await prisma.board.create({
-      data: {
-        name: name.trim(),
-        description: description || null,
-        image: image || null,
-        isPrivate: isPrivate || false,
-        createdById: userId,
-        organizationId: null, // Explicitly null for personal boards
-      },
+    // Create board and record audit log in one transaction
+    const newBoard = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const board = await tx.board.create({
+        data: {
+          name: name.trim(),
+          description: description || null,
+          image: image || null,
+          isPrivate: isPrivate || false,
+          createdById: userId,
+          organizationId: null, // null for personal boards
+        },
+      });
+      // Only log if linked to an organization
+      if (board.organizationId) {
+        await tx.auditLog.create({
+          data: {
+            organization: { connect: { id: board.organizationId } },
+            board: { connect: { id: board.id } },
+            user: { connect: { id: userId } },
+            action: 'CREATE_BOARD',
+            entityType: 'BOARD',
+            entityId: board.id,
+          }
+        });
+      }
+      return board;
     });
 
     return NextResponse.json(newBoard, { status: 201 });
