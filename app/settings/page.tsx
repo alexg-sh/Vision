@@ -209,17 +209,6 @@ export default function AccountSettingsPage() {
       const updatedData = await response.json();
       setSuccessMessage("Profile updated successfully")
       
-      // Replace direct call with API call
-      await logAuditAction({
-        action: "UPDATE_USER_PROFILE",
-        entityType: "USER",
-        entityId: session.user.id,
-        entityName: profile.displayName || profile.username,
-        details: {
-          updatedFields: Object.keys(profile).filter(key => profile[key as keyof typeof profile] !== "")
-        }
-      });
-      
       // Optionally update local state again if response differs
       // setProfile(updatedData); 
       setTimeout(() => setSuccessMessage(""), 3000)
@@ -266,17 +255,6 @@ export default function AccountSettingsPage() {
         if (!response.ok) {
             throw new Error(result.message || 'Failed to change password');
         }
-
-        // Replace direct call with API call
-        await logAuditAction({
-            action: "CHANGE_PASSWORD",
-            entityType: "USER",
-            entityId: session?.user?.id as string,
-            entityName: session?.user?.name || "User",
-            details: {
-                timestamp: new Date().toISOString()
-            }
-        });
 
         setPasswordData({
             currentPassword: "",
@@ -432,15 +410,6 @@ export default function AccountSettingsPage() {
         console.error("Failed to update notification settings:", errorData.message);
         throw new Error('Failed to update notification settings');
       }
-
-      // Replace direct call with API call
-      await logAuditAction({
-        action: "UPDATE",
-        entityType: "USER_PREFERENCES",
-        entityId: session?.user?.id ?? "unknown",
-        entityName: "Notification Settings",
-        details: { updatedSettings: notificationSettings },
-      });
 
       toast({ title: "Success", description: "Notification settings updated." });
     } catch (err: any) {

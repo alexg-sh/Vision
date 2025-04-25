@@ -83,6 +83,21 @@ export async function PUT(request: NextRequest) {
         _count: { select: { followers: true, following: true } }
       }
     });
+
+    // --- Audit log for profile update ---
+    await fetch(process.env.NEXT_PUBLIC_BASE_URL + '/api/audit-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'UPDATE_USER_PROFILE',
+        entityType: 'USER',
+        entityId: userId,
+        entityName: name || username,
+        details: { updatedFields: Object.keys({ username, name, bio, avatar, website, twitter, linkedin, github }).filter(key => !!body[key]) }
+      })
+    });
+    // --- End audit log ---
+
     return NextResponse.json(updated);
   } catch (error) {
     console.error('Failed to update profile:', error);

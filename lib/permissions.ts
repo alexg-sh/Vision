@@ -46,7 +46,7 @@ export async function getMembershipStatus(userId: string, organizationId: string
     select: { role: true, status: true },
   });
 
-  const isMember = !!member;
+  const isMember = !!member && member.status === 'ACTIVE'; // Check for ACTIVE status
   const isBanned = member?.status === 'BANNED';
   const role = member?.role || null;
   const isAdmin = role === 'ADMIN';

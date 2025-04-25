@@ -1,11 +1,28 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 export async function GET(req: Request) {
+  // Get current user session to include private organizations for members
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+  let membershipOrgIds: string[] = [];
+  if (userId) {
+    const memberships = await prisma.organizationMember.findMany({
+      where: { userId: userId, status: 'ACTIVE' },
+      select: { organizationId: true }
+    });
+    membershipOrgIds = memberships.map(m => m.organizationId);
+  }
+
   try {
     const organizations = await prisma.organization.findMany({
       where: {
-        isPrivate: false, // Only fetch public organizations
+        OR: [
+          { isPrivate: false },                      // public orgs
+          { id: { in: membershipOrgIds } }           // private orgs where user is a member
+        ]
       },
       select: {
         id: true,
@@ -17,16 +34,13 @@ export async function GET(req: Request) {
         _count: {
           select: {
             members: { where: { status: 'ACTIVE' } }, // Count only active members
-            boards: { where: { isPrivate: false } }, // Count only public boards within the public org
+            boards: { where: { isPrivate: false } }, // Count only public boards
           },
         },
       },
       orderBy: {
         createdAt: 'desc', // Show newer organizations first, or adjust as needed
       },
-      // Add pagination if needed for large numbers of orgs
-      // take: 20,
-      // skip: 0,
     });
 
     return NextResponse.json(organizations, { status: 200 });

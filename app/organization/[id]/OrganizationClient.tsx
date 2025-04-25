@@ -91,6 +91,11 @@ export default function OrganizationClient({ organization, userRole, userId }: O
   // Show settings button for admin, moderator, or creator
   const canManageSettings = userRole === 'admin' || userRole === 'moderator' || userRole === 'creator';
 
+  // Filter boards: guests only see public boards
+  const visibleBoards = userRole === 'guest'
+    ? organization.boards.filter(b => !b.isPrivate)
+    : organization.boards;
+
   const handleCreateBoard = async () => {
     if (newBoardName.trim()) {
       setIsLoading(true)
@@ -586,7 +591,7 @@ export default function OrganizationClient({ organization, userRole, userId }: O
         {/* Boards Tab */}
         <TabsContent value="boards" className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {organization.boards.map((board: BoardWithCounts) => (
+            {visibleBoards.map((board: BoardWithCounts) => (
               <Link key={board.id} href={`/board/${board.id}`}>
                 <Card className="h-full hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors overflow-hidden">
                   <div className="relative h-40 w-full">
