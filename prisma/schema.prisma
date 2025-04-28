@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,42 +9,58 @@ datasource db {
 
 model User {
   id                   String               @id @default(cuid())
-  username             String?              @unique // Make username optional
+  username             String?              @unique
   name                 String?
   email                String?              @unique
   emailVerified        DateTime?
   image                String?
-  passwordHash         String? // Added for Credentials provider
-  bio                  String?              // added bio field
-  website              String?              // Added social link fields
+  passwordHash         String?
+  bio                  String?
+  website              String?
   twitter              String?
   linkedin             String?
   github               String?
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
-  accounts             Account[] // Added for NextAuth
-  sessions             Session[] // Added for NextAuth
+  accounts             Account[]
+  sessions             Session[]
   organizations        OrganizationMember[]
   posts                Post[]
-  comments             Comment[] // Add this line
-  createdBoards        Board[]              @relation("CreatedBoards") // Add this line for the inverse relation
-  bans                 OrganizationBan[] // Added inverse relation for bans
+  comments             Comment[]
+  createdBoards        Board[]              @relation("CreatedBoards")
+  bans                 OrganizationBan[]
   sentInvites          Invite[]             @relation("SentInvites")
   receivedInvites      Invite[]             @relation("ReceivedInvites")
   notifications        Notification[]
-  inviterNotifications Notification[]       @relation("InviterNotifications") // Separate relation name
-  boardMembers         BoardMember[] // Add this relation
-  auditLogs            AuditLog[] // User who performed the action
-  bannedOrgActions     OrganizationBan[]    @relation("BannedByUsers") // Relation for bans issued by this user
-  bannedBoardActions   BoardMember[]        @relation("BannedBoardUsers") // Relation for board bans issued by this user
-  postVotes            PostVote[] // Added relation for PostVote
-  commentVotes         CommentVote[] // Added relation for CommentVote
-  followers            Follow[]             @relation("followers") // users following this user
-  following            Follow[]             @relation("following") // users this user follows
-  // Add other fields as needed, e.g., passwordHash if using credentials
+  inviterNotifications Notification[]       @relation("InviterNotifications")
+  boardMembers         BoardMember[]
+  auditLogs            AuditLog[]
+  bannedOrgActions     OrganizationBan[]    @relation("BannedByUsers")
+  bannedBoardActions   BoardMember[]        @relation("BannedBoardUsers")
+  postVotes            PostVote[]
+  commentVotes         CommentVote[]
+  followers            Follow[]             @relation("followers")
+  following            Follow[]             @relation("following")
+  preferences          UserPreferences?
 }
 
-// Added for NextAuth
+model UserPreferences {
+  id                        String   @id @default(cuid())
+  userId                    String   @unique
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailNotifications        Boolean  @default(true)
+  mentionNotifications      Boolean  @default(true)
+  replyNotifications        Boolean  @default(true)
+  voteNotifications         Boolean  @default(false)
+  commentNotifications      Boolean  @default(true)
+  statusChangeNotifications Boolean  @default(true)
+  digestEmail               String   @default("weekly") // 'daily', 'weekly', 'never'
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@index([userId])
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -68,19 +81,17 @@ model Account {
   @@index([userId])
 }
 
-// Added for NextAuth
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userAgent    String? // Add this line to store the User-Agent string
+  userAgent    String?
 
   @@index([userId])
 }
 
-// Added for NextAuth
 model VerificationToken {
   identifier String
   token      String   @unique
@@ -92,29 +103,28 @@ model VerificationToken {
 model Organization {
   id            String               @id @default(cuid())
   name          String
-  slug          String               @unique // For URL-friendly identifiers
+  slug          String               @unique
   imageUrl      String?
-  description   String? // Added description field
-  isPrivate     Boolean              @default(false) // Add this line
+  description   String?
+  isPrivate     Boolean              @default(false)
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
   members       OrganizationMember[]
   boards        Board[]
-  auditLogs     AuditLog[] // Logs related to this organization
-  bans          OrganizationBan[] // Added inverse relation for bans
+  auditLogs     AuditLog[]
+  bans          OrganizationBan[]
   invites       Invite[]
   notifications Notification[]
 }
 
-// Junction table for many-to-many relationship between User and Organization
 model OrganizationMember {
   id             String       @id @default(cuid())
   userId         String
   organizationId String
   role           String       @default("MEMBER") // e.g., ADMIN, MEMBER
   status         String       @default("ACTIVE") // e.g., ACTIVE, BANNED
-  bannedAt       DateTime? // Timestamp when the user was banned
-  banReason      String? // Optional reason for the ban
+  bannedAt       DateTime?
+  banReason      String?
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
@@ -131,32 +141,32 @@ model OrganizationBan {
   organizationId String
   bannedAt       DateTime @default(now())
   banReason      String?
-  bannedByUserId String? // Changed from bannedBy: String?
+  bannedByUserId String?
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  bannedBy     User?        @relation("BannedByUsers", fields: [bannedByUserId], references: [id], onDelete: SetNull) // Added relation
+  bannedBy     User?        @relation("BannedByUsers", fields: [bannedByUserId], references: [id], onDelete: SetNull)
 
   @@unique([userId, organizationId])
   @@index([organizationId])
-  @@index([bannedByUserId]) // Added index
+  @@index([bannedByUserId])
 }
 
 model Board {
   id             String         @id @default(cuid())
   name           String
-  description    String? // Added description field
-  image          String? // Added image field
-  isPrivate      Boolean        @default(false) // Added isPrivate field
-  organizationId String? // Make organizationId optional
-  createdById    String // Foreign key for the creator
-  organization   Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade) // Adjust relation to be optional
+  description    String?
+  image          String?
+  isPrivate      Boolean        @default(false)
+  organizationId String?
+  createdById    String
+  organization   Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdBy      User           @relation("CreatedBoards", fields: [createdById], references: [id], onDelete: Cascade)
   posts          Post[]
   invites        Invite[]
   notifications  Notification[]
-  members        BoardMember[] // Add this relation
-  auditLogs      AuditLog[] // Logs related to this board
+  members        BoardMember[]
+  auditLogs      AuditLog[]
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
@@ -164,27 +174,26 @@ model Board {
   @@index([createdById])
 }
 
-// Add the BoardMember model here
 model BoardMember {
   id             String    @id @default(cuid())
   userId         String
   boardId        String
   role           String    @default("MEMBER") // e.g., ADMIN, MEMBER, VIEWER
-  status         String    @default("ACTIVE") // Added: e.g., ACTIVE, BANNED
-  bannedAt       DateTime? // Added: Timestamp when the user was banned from the board
-  banReason      String?   // Added: Optional reason for the board ban
-  bannedByUserId String?   // Added: Admin/Mod who banned from board
+  status         String    @default("ACTIVE") // e.g., ACTIVE, BANNED
+  bannedAt       DateTime?
+  banReason      String?
+  bannedByUserId String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   user     User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   board    Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  bannedBy User? @relation("BannedBoardUsers", fields: [bannedByUserId], references: [id], onDelete: SetNull) // Added relation
+  bannedBy User? @relation("BannedBoardUsers", fields: [bannedByUserId], references: [id], onDelete: SetNull)
 
   @@unique([userId, boardId])
   @@index([userId])
   @@index([boardId])
-  @@index([bannedByUserId]) // Added index
+  @@index([bannedByUserId])
 }
 
 model Post {
@@ -195,10 +204,10 @@ model Post {
   board         Board          @relation(fields: [boardId], references: [id], onDelete: Cascade)
   authorId      String
   author        User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  votes         Int            @default(0)  // Added votes field
-  tags          String[]       @default([]) // Added tags field
+  votes         Int            @default(0)
+  tags          String[]       @default([])
   comments      Comment[]
-  postVotes     PostVote[] // Added relation for PostVote
+  postVotes     PostVote[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   notifications Notification[]
@@ -215,7 +224,7 @@ model Comment {
   author     User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   content    String
   votes      Int      @default(0)
-  commentVotes CommentVote[] // Added relation for CommentVote
+  commentVotes CommentVote[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
@@ -248,43 +257,41 @@ model CommentVote {
   @@index([commentId])
 }
 
-// Refined Audit Log model
 model AuditLog {
   id        String   @id @default(cuid())
-  orgId     String?  // Link to organization if action is org-level or board-within-org level
-  boardId   String?  // Link to board if action is board-level
-  userId    String   // ID of the user who performed the action
+  orgId     String?
+  boardId   String?
+  userId    String
   action    String   // e.g., CREATE_BOARD, UPDATE_ORGANIZATION_NAME, ADD_MEMBER, DELETE_POST
   entityType String  // e.g., BOARD, ORGANIZATION, MEMBER, POST, INVITE
-  entityId  String   // ID of the entity that was affected (e.g., the boardId, organizationId, memberId)
-  entityName String? // Optional: Store the name/title of the entity for easier display (e.g., board name, user name)
-  details   Json?    // Optional: Store additional details like old/new values
+  entityId  String
+  entityName String?
+  details   Json?
   createdAt DateTime @default(now())
 
   organization Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
   board        Board?        @relation(fields: [boardId], references: [id], onDelete: Cascade)
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([orgId, createdAt(sort: Desc)]) // Index for fetching org logs sorted by time
-  @@index([boardId, createdAt(sort: Desc)]) // Index for fetching board logs sorted by time
+  @@index([orgId, createdAt(sort: Desc)])
+  @@index([boardId, createdAt(sort: Desc)])
   @@index([userId])
   @@index([entityType, entityId])
 }
 
 model Notification {
   id        String           @id @default(cuid())
-  userId    String // The ID of the user receiving the notification
+  userId    String
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   type      NotificationType
   content   String
-  link      String? // Link to the relevant page (post, board, org, etc.)
+  link      String?
   read      Boolean          @default(false)
   createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt // Remove @default()
+  updatedAt DateTime         @updatedAt
 
-  // Optional fields for specific notification types
-  inviterId String? // ID of the user who sent the invite/mention etc.
-  inviter   User?   @relation("InviterNotifications", fields: [inviterId], references: [id], onDelete: SetNull) // Separate relation name
+  inviterId String?
+  inviter   User?   @relation("InviterNotifications", fields: [inviterId], references: [id], onDelete: SetNull)
 
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -295,7 +302,7 @@ model Notification {
   postId String?
   post   Post?   @relation(fields: [postId], references: [id], onDelete: Cascade)
 
-  inviteId String? @unique // Link to the specific invite
+  inviteId String? @unique
   invite   Invite? @relation(fields: [inviteId], references: [id], onDelete: Cascade)
 
   @@index([userId])
@@ -306,21 +313,20 @@ enum NotificationType {
   MENTION
   REPLY
   VOTE
-  STATUS_UPDATE // Renamed from STATUS for clarity
+  STATUS_UPDATE
   ANNOUNCEMENT
-  POLL_CREATED // Renamed from POLL for clarity
-  INVITE // Added for invitations
-  // Add other types as needed
+  POLL_CREATED
+  INVITE
 }
 
 model Invite {
   id              String       @id @default(cuid())
-  invitedUsername String?      // Make optional
+  invitedUsername String?
   status          InviteStatus @default(PENDING)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
-  invitedById     String       // ID of the user who sent the invite
+  invitedById     String
   invitedBy       User         @relation("SentInvites", fields: [invitedById], references: [id], onDelete: Cascade)
 
   organizationId  String?
@@ -343,10 +349,9 @@ enum InviteStatus {
   PENDING
   ACCEPTED
   DECLINED
-  EXPIRED // Optional
+  EXPIRED
 }
 
-// New model to track follow relationships
 model Follow {
   id           String   @id @default(cuid())
   follower     User     @relation("following", fields: [followerId], references: [id], onDelete: Cascade)
@@ -357,9 +362,3 @@ model Follow {
 
   @@unique([followerId, followingId])
 }
-
-// Make sure OrganizationMember and BoardMember models exist and are correctly defined
-// Example (adjust based on your actual schema):
-// Removed duplicate definitions below
-
-// Add other models as needed, e.g., Notification, CustomField, etc.

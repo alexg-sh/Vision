@@ -4,7 +4,6 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { prisma } from '@/lib/prisma'
 import type { Post as PostModel, User, PostVote } from '@prisma/client'
 
-// Define type for post with related author, votes, and tags
 type PostWithIncludes = PostModel & {
   author: Pick<User, 'id' | 'name' | 'image'>;
   postVotes?: { voteType: number }[];
@@ -14,10 +13,9 @@ type PostWithIncludes = PostModel & {
 export async function GET(req: NextRequest, { params: paramsPromise }: { params: Promise<{ id: string; postId: string }> }) {
   const params = await paramsPromise
   const { id: boardId, postId } = params
-  // Get session to determine if user has voted
   const session = await getServerSession(authOptions)
   const userId = session?.user?.id
-  // Fetch post with current votes and user's vote if logged in
+
   const post = await prisma.post.findUnique({
     where: { id: postId },
     include: {
