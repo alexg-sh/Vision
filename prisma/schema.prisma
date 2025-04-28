@@ -196,6 +196,7 @@ model Post {
   authorId      String
   author        User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
   votes         Int            @default(0)  // Added votes field
+  tags          String[]       @default([]) // Added tags field
   comments      Comment[]
   postVotes     PostVote[] // Added relation for PostVote
   createdAt     DateTime       @default(now())

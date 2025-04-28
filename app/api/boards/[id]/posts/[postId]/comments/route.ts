@@ -8,16 +8,28 @@ interface RouteContext {
 }
 
 export async function GET(_req: Request, { params: paramsPromise }: { params: Promise<{ id: string; postId: string }> }) {
-  const params = await paramsPromise // Await params
+  const params = await paramsPromise
   const { postId } = params
+  const session = await getServerSession(authOptions)
+  const userId = session?.user?.id
   const comments = await prisma.comment.findMany({
     where: { postId },
     orderBy: { createdAt: 'asc' },
     include: {
-      author: { select: { id: true, name: true, image: true } }
+      author: { select: { id: true, name: true, image: true } },
+      commentVotes: userId ? { where: { userId } } : false
     }
   })
-  return NextResponse.json(comments)
+  const formattedComments = comments.map(comment => ({
+    id: comment.id,
+    content: comment.content,
+    votes: comment.votes,
+    createdAt: comment.createdAt,
+    author: { id: comment.author.id, name: comment.author.name, avatar: comment.author.image, role: 'member' },
+    userVote: comment.commentVotes?.[0]?.voteType ?? null,
+    replies: []
+  }))
+  return NextResponse.json(formattedComments)
 }
 
 export async function POST(req: Request, { params: paramsPromise }: { params: Promise<{ id: string; postId: string }> }) {

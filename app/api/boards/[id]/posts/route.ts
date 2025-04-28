@@ -69,6 +69,7 @@ export async function GET(req: NextRequest, { params: paramsPromise }: RouteCont
         id: post.id,
         title: post.title,
         content: post.content,
+        tags: post.tags,
         createdAt: post.createdAt,
         authorId: post.authorId,
         author: post.author,
@@ -93,12 +94,12 @@ export async function POST(req: Request, { params: paramsPromise }: RouteContext
   const params = await paramsPromise // Await the params Promise
   const boardId = params.id
   try {
-    const { title, content } = await req.json()
+    const { title, content, tags } = await req.json()
     if (!title || typeof title !== 'string') {
       return NextResponse.json({ message: 'Title is required' }, { status: 400 })
     }
     const newPost = await prisma.post.create({
-      data: { title: title.trim(), content: content || null, boardId, authorId: userId }
+      data: { title: title.trim(), content: content || null, boardId, authorId: userId, tags: tags ?? [] }
     })
     // Fetch the newly created post with necessary includes for immediate display
     const postWithDetails = await prisma.post.findUnique({
@@ -115,6 +116,7 @@ export async function POST(req: Request, { params: paramsPromise }: RouteContext
       votes: postWithDetails?._count.postVotes ?? 0,
       comments: postWithDetails?._count.comments ?? 0,
       userVote: null, // New post, user hasn't voted yet
+      tags: postWithDetails?.tags ?? []
     };
 
     return NextResponse.json(formattedNewPost, { status: 201 })

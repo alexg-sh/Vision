@@ -83,6 +83,7 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [newPostTitle, setNewPostTitle] = useState("")
   const [newPostContent, setNewPostContent] = useState("")
+  const [newPostTags, setNewPostTags] = useState("")
   const [isCreatingPost, setIsCreatingPost] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [selectedPostIds, setSelectedPostIds] = useState<Set<string>>(new Set())
@@ -193,13 +194,14 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
       setCreateError("Title is required")
       return
     }
+    const tags = newPostTags.split(',').map(t => t.trim()).filter(Boolean)
     setIsCreatingPost(true)
     setCreateError(null)
     try {
       const res = await fetch(`/api/boards/${board.id}/posts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newPostTitle, content: newPostContent }),
+        body: JSON.stringify({ title: newPostTitle, content: newPostContent, tags }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -210,6 +212,7 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
       setIsCreateDialogOpen(false)
       setNewPostTitle("")
       setNewPostContent("")
+      setNewPostTags("")
       toast({ title: "Post created" })
     } catch (err: any) {
       setCreateError(err.message || "Unexpected error")
@@ -356,6 +359,13 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
               </DropdownMenu>
             </div>
             <h3 className="text-lg font-semibold mb-2 hover:underline">{post.title}</h3>
+            {post.tags?.length ? (
+              <div className="flex flex-wrap gap-1 mb-2">
+                {post.tags.map((tag) => (
+                  <Badge key={tag} variant="secondary">{tag}</Badge>
+                ))}
+              </div>
+            ) : null}
             {post.pollOptions && post.pollOptions.length > 0 && (
               <RadioGroup
                 value={post.userPollVote?.toString()}
@@ -432,6 +442,15 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
                       onChange={(e) => setNewPostContent(e.target.value)}
                       disabled={isCreatingPost}
                       rows={6}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-post-tags">Tags (comma separated)</Label>
+                    <Input
+                      id="new-post-tags"
+                      value={newPostTags}
+                      onChange={(e) => setNewPostTags(e.target.value)}
+                      disabled={isCreatingPost}
                     />
                   </div>
                   {newPostContent && (

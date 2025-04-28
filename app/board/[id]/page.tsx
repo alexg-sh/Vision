@@ -63,6 +63,7 @@ export type PostWithClientData = {
   githubIssue?: GithubIssue | null;
   status?: string; // Example if status is needed
   comments?: number; // Example
+  tags: string[];
 };
 
 // Define the simplified, serializable board data for the client
@@ -85,14 +86,20 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
 
-  // Fetch board and its relations, including creator
+  // Fetch board and its relations, including creator and user votes
   const board = await prisma.board.findUnique({
     where: { id: boardId },
     include: {
-      posts: { include: { author: true }, orderBy: { createdAt: 'desc' } },
+      posts: {
+        include: {
+          author: true,
+          postVotes: userId ? { where: { userId } } : false,
+        },
+        orderBy: { createdAt: 'desc' }
+      },
       organization: true,
     },
-  }) as BoardWithPostsAndOrg & { createdById: string } | null;
+  }) as (BoardWithPostsAndOrg & { createdById: string }) | null;
   if (!board) {
     notFound();
   }
@@ -119,27 +126,32 @@ export default async function BoardPage({ params }: { params: Promise<{ id: stri
   try {
     // Prepare initial posts with client-side data structure
     // Explicitly type the 'post' parameter with the manually defined interface
-    const initialPosts: PostWithClientData[] = board.posts.map((post: PostWithAuthor): PostWithClientData => ({
-      id: post.id,
-      title: post.title,
-      content: post.content,
-      authorId: post.authorId,
-      votes: post.votes,
-      status: post.status,
-      createdAt: post.createdAt.toISOString(),
-      updatedAt: post.updatedAt.toISOString(),
-      userVote: 0,
-      userPollVote: null,
-      pollOptions: undefined,
-      githubIssue: undefined,
-      comments: 0,
-      author: {
-        id: post.author.id,
-        name: post.author.name,
-        image: post.author.image,
-        role: 'member',
-      }
-    }));
+    const initialPosts: PostWithClientData[] = board.posts.map((post: any): PostWithClientData => {
+      // Determine user's vote from postVotes relation
+      const userVote = post.postVotes && post.postVotes.length > 0 ? post.postVotes[0].voteType : null;
+      return {
+        id: post.id,
+        title: post.title,
+        content: post.content,
+        authorId: post.authorId,
+        votes: post.votes,
+        status: post.status,
+        createdAt: post.createdAt.toISOString(),
+        updatedAt: post.updatedAt.toISOString(),
+        userVote,
+        userPollVote: null,
+        pollOptions: undefined,
+        githubIssue: undefined,
+        comments: 0,
+        tags: post.tags ?? [],
+        author: {
+          id: post.author.id,
+          name: post.author.name,
+          image: post.author.image,
+          role: 'member',
+        }
+      };
+    });
 
     // Create a simplified, serializable board object for the client
     const clientBoardData: ClientBoardData = {

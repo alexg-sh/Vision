@@ -68,8 +68,8 @@ export default function PostDetailPage({ params: paramsPromise }: { params: Prom
   useEffect(() => {
     async function fetchData() {
       const [postRes, commentsRes] = await Promise.all([
-        fetch(`/api/boards/${boardId}/posts/${postId}`),
-        fetch(`/api/boards/${boardId}/posts/${postId}/comments`),
+        fetch(`/api/boards/${boardId}/posts/${postId}`, { credentials: 'same-origin' }),
+        fetch(`/api/boards/${boardId}/posts/${postId}/comments`, { credentials: 'same-origin' }),
       ])
       if (postRes.ok) {
         setPost(await postRes.json())
