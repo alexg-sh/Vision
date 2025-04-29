@@ -1,8 +1,6 @@
 "use client"
 
-import Link from "next/link"
-
-import { useState } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,235 +9,222 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Github, RefreshCw, LinkIcon } from "lucide-react"
 
-export default function GitHubIntegrationPage({ params }: { params: { id: string } }) {
+export default function GitHubIntegrationPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
-  const [isConnected, setIsConnected] = useState(true)
-  const [repoUrl, setRepoUrl] = useState("acme/project-vision")
-  const [syncFrequency, setSyncFrequency] = useState("hourly")
-  const [autoLinkIssues, setAutoLinkIssues] = useState(true)
-  const [syncLabels, setSyncLabels] = useState(true)
-  const [syncComments, setSyncComments] = useState(true)
-  const [isSyncing, setIsSyncing] = useState(false)
-  const [lastSynced, setLastSynced] = useState("2023-04-22T15:30:00Z")
+  // unwrap boardId
+  const { id: boardId } = React.use(params)
+  const [isConnected, setIsConnected] = useState(false)
+  const [repoUrl, setRepoUrl] = useState("")
+  const [repos, setRepos] = useState<Array<{ name: string; fullName: string }>>([])
+  const [reposError, setReposError] = useState<string | null>(null)
+  const [selectedRepo, setSelectedRepo] = useState("")
+  const [issues, setIssues] = useState<Array<{ number: number; title: string; url: string }>>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Mock GitHub issues
-  const [linkedIssues, setLinkedIssues] = useState([
-    {
-      id: 42,
-      title: "Add dark mode support",
-      status: "open",
-      linkedPost: {
-        id: 1,
-        title: "Add dark mode support",
-      },
-    },
-    {
-      id: 56,
-      title: "Improve mobile responsiveness",
-      status: "in-progress",
-      linkedPost: {
-        id: 2,
-        title: "Improve mobile responsiveness",
-      },
-    },
-  ])
+  // Fetch board status
+  useEffect(() => {
+    const loadBoard = async () => {
+      try {
+        const res = await fetch(`/api/boards/${boardId}`)
+        if (!res.ok) throw new Error('Failed to load board')
+        const data = await res.json()
+        setIsConnected(data.githubEnabled)
+        setRepoUrl(data.githubRepo || '')
+      } catch (err: any) {
+        setError(err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadBoard()
+  }, [boardId])
 
-  const handleSyncNow = () => {
-    setIsSyncing(true)
+  // fetch repositories when connected without linked repo
+  const fetchRepos = useCallback(async () => {
+    setReposError(null)
+    try {
+      const res = await fetch(`/api/boards/${boardId}/github/repos`)
+      const text = await res.text()
+      const trimmed = text.trim()
+      // No content means no repos
+      if (!trimmed) {
+        setRepos([])
+        return
+      }
+      // HTML or other unexpected content
+      if (trimmed.startsWith('<')) {
+        throw new Error('Invalid response from GitHub API; please re-authorize your GitHub connection')
+      }
+      const data = JSON.parse(trimmed)
+      if (!res.ok) {
+        const errMsg = data.message || res.statusText
+        if (res.status === 401 || res.status === 403) {
+          throw new Error('Unauthorized – please re-authorize GitHub to fetch your repos')
+        }
+        throw new Error(errMsg)
+      }
+      setRepos(data)
+    } catch (err: any) {
+      console.error('Error loading repos:', err)
+      setRepos([])
+      setReposError(err.message)
+    }
+  }, [boardId])
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsSyncing(false)
-      setLastSynced(new Date().toISOString())
-    }, 2000)
-  }
+  // load repository list after auth but before linking
+  useEffect(() => {
+    if (isConnected && !repoUrl) fetchRepos()
+  }, [isConnected, repoUrl, fetchRepos])
 
-  const handleDisconnect = () => {
-    // In a real app, this would call an API to disconnect the GitHub integration
-    setIsConnected(false)
-  }
+  // load issues once a repo is linked
+  const fetchIssues = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/boards/${boardId}/github/issues`)
+      if (!res.ok) throw new Error('Failed to load issues')
+      const items = await res.json()
+      setIssues(items)
+    } catch (err) {
+      console.error('Error loading issues:', err)
+      setIssues([])
+    }
+  }, [boardId])
+  useEffect(() => {
+    if (repoUrl) fetchIssues()
+  }, [repoUrl, fetchIssues])
 
   const handleConnect = () => {
-    // In a real app, this would redirect to GitHub OAuth flow
-    setIsConnected(true)
+    // redirect to OAuth flow
+    window.location.href = `/api/boards/${boardId}/github/connect`
   }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return new Intl.DateTimeFormat("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(date)
+  const handleLinkRepo = async () => {
+    if (!selectedRepo) return
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/boards/${boardId}/github`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ githubEnabled: true, githubRepo: selectedRepo }),
+      })
+      // Safely parse JSON or fallback to handle HTML/errors
+      const text = await res.text()
+      let data: any
+      try {
+        data = JSON.parse(text)
+      } catch (jsonErr) {
+        console.error('handleLinkRepo: Unexpected response:', text)
+        throw new Error('Unexpected server response – please try again or re-authorize GitHub')
+      }
+      if (!res.ok) {
+        throw new Error(data.message || `Link failed: ${res.status}`)
+      }
+      // Success
+      setIsConnected(true)
+      setRepoUrl(selectedRepo)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
+
+  const handleDisconnect = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/boards/${boardId}/github`, { method: 'DELETE' })
+      if (!res.ok) throw new Error((await res.json()).message)
+      setIsConnected(false)
+      setRepoUrl('')
+      setIssues([])
+      setRepos([])
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) return <div className="p-8 text-center">Loading...</div>
+  if (error) return <div className="p-8 text-center text-red-500">{error}</div>
 
   return (
     <main className="flex-1 container py-6">
-      <div className="flex items-center gap-2 mb-6">
-        <Button variant="ghost" size="icon" onClick={() => router.push(`/board/${params.id}/settings`)}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex items-center gap-2">
-          <Github className="h-5 w-5" />
-          <h1 className="text-2xl font-bold">GitHub Integration</h1>
-        </div>
-      </div>
+      <Button variant="ghost" size="icon" onClick={() => router.push(`/board/${boardId}/settings`)}>
+        <ArrowLeft className="h-4 w-4" />
+      </Button>
+      <h1 className="text-2xl font-bold mb-4">GitHub Integration</h1>
 
-      <Card className="mb-8">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>GitHub Repository Connection</CardTitle>
-              <CardDescription>Connect your board to a GitHub repository to sync issues.</CardDescription>
-            </div>
-            {isConnected ? (
-              <Badge
-                variant="outline"
-                className="gap-1 bg-green-50 text-green-700 dark:bg-green-900 dark:text-green-300 border-green-200 dark:border-green-800"
-              >
-                Connected
-              </Badge>
-            ) : (
-              <Badge
-                variant="outline"
-                className="gap-1 bg-gray-50 text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800"
-              >
-                Disconnected
-              </Badge>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isConnected ? (
-            <>
-              <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Github className="h-5 w-5" />
-                  <span className="font-medium">{repoUrl}</span>
-                </div>
-                <div className="text-sm text-muted-foreground">Last synced: {formatDate(lastSynced)}</div>
-              </div>
-
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="sync-frequency">Sync Frequency</Label>
-                  <select
-                    id="sync-frequency"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    value={syncFrequency}
-                    onChange={(e) => setSyncFrequency(e.target.value)}
-                  >
-                    <option value="realtime">Real-time</option>
-                    <option value="hourly">Hourly</option>
-                    <option value="daily">Daily</option>
-                    <option value="manual">Manual only</option>
-                  </select>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Switch id="auto-link" checked={autoLinkIssues} onCheckedChange={setAutoLinkIssues} />
-                  <Label htmlFor="auto-link">Automatically link new issues to matching feedback posts</Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Switch id="sync-labels" checked={syncLabels} onCheckedChange={setSyncLabels} />
-                  <Label htmlFor="sync-labels">Sync labels between GitHub and board</Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Switch id="sync-comments" checked={syncComments} onCheckedChange={setSyncComments} />
-                  <Label htmlFor="sync-comments">Sync comments between GitHub issues and feedback posts</Label>
-                </div>
-              </div>
-
-              <div className="flex justify-between pt-4">
-                <Button variant="outline" onClick={handleDisconnect}>
-                  Disconnect Repository
-                </Button>
-                <Button onClick={handleSyncNow} disabled={isSyncing}>
-                  {isSyncing ? (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                      Syncing...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      Sync Now
-                    </>
-                  )}
-                </Button>
-              </div>
-            </>
-          ) : (
-            <div className="text-center py-8">
-              <Github className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-medium mb-2">Connect to GitHub</h3>
-              <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                Connect your board to a GitHub repository to sync issues and streamline your workflow.
-              </p>
-              <Button onClick={handleConnect}>
-                <Github className="mr-2 h-4 w-4" />
-                Connect GitHub Repository
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {isConnected && (
+      {!isConnected ? (
         <Card>
-          <CardHeader>
-            <CardTitle>Linked GitHub Issues</CardTitle>
-            <CardDescription>GitHub issues that are linked to feedback posts on this board.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {linkedIssues.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p>No linked GitHub issues yet</p>
-                </div>
-              ) : (
-                linkedIssues.map((issue) => (
-                  <div key={issue.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <Github className="h-4 w-4" />
-                      <a
-                        href={`https://github.com/${repoUrl}/issues/${issue.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium hover:underline"
-                      >
-                        {issue.title} <span className="text-muted-foreground">#{issue.id}</span>
-                      </a>
-                      <Badge variant="outline" className="capitalize">
-                        {issue.status}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">
-                        Linked to:{" "}
-                        <Link href={`/board/${params.id}/post/${issue.linkedPost.id}`} className="hover:underline">
-                          {issue.linkedPost.title}
-                        </Link>
-                      </span>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <LinkIcon className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-          <CardFooter className="border-t pt-6">
-            <Button variant="outline" onClick={() => router.push(`/board/${params.id}?tab=github`)}>
-              View All GitHub Issues
+          <CardHeader><CardTitle>Connect to GitHub</CardTitle></CardHeader>
+          <CardContent className="flex justify-center py-8">
+            <Button onClick={handleConnect} size="sm">
+              Authorize GitHub
             </Button>
-          </CardFooter>
+          </CardContent>
         </Card>
+      ) : !repoUrl ? (
+        <Card>
+          <CardHeader><CardTitle>Select a Repository</CardTitle></CardHeader>
+          <CardContent>
+            {repos.length > 0 ? (
+              <select
+                value={selectedRepo}
+                onChange={(e) => setSelectedRepo(e.target.value)}
+                className="w-full mb-4 border rounded p-2"
+              >
+                <option value="">-- choose repo --</option>
+                {repos.map(r => (
+                  <option key={r.fullName} value={r.fullName}>{r.fullName}</option>
+                ))}
+              </select>
+            ) : (
+              <div className="mb-4">
+                <p className="text-sm text-muted-foreground">{reposError || 'No repositories found.'}</p>
+                <div className="flex gap-4 mt-2">
+                  <Button variant="link" size="sm" onClick={fetchRepos} className="flex items-center">
+                    <RefreshCw className="mr-1 h-4 w-4" /> Refresh
+                  </Button>
+                  {reposError?.toLowerCase().includes('unauthorized') && (
+                    <Button variant="link" size="sm" onClick={handleConnect} className="flex items-center">
+                      <LinkIcon className="mr-1 h-4 w-4" /> Re-authorize
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+            <Button onClick={handleLinkRepo} disabled={!selectedRepo}>
+              Link Repository
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+        <Card>
+          <CardHeader><CardTitle>Linked Repository</CardTitle></CardHeader>
+          <CardContent>
+            <p className="mb-4">{repoUrl}</p>
+            <Button onClick={handleDisconnect}>Disconnect</Button>
+          </CardContent>
+        </Card>
+        {issues.length > 0 && (
+          <Card className="mt-6">
+            <CardHeader><CardTitle>Open Issues</CardTitle></CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {issues.map(issue => (
+                  <li key={issue.number}>
+                    <a href={issue.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                      #{issue.number} {issue.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+        </>
       )}
     </main>
   )

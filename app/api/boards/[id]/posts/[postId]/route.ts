@@ -8,11 +8,13 @@ type PostWithIncludes = PostModel & {
   author: Pick<User, 'id' | 'name' | 'image'>;
   postVotes?: { voteType: number }[];
   tags: string[];
+  githubIssueNumber?: number | null;
+  githubIssueUrl?: string | null;
+  githubIssueStatus?: string | null;
 };
 
 export async function GET(req: NextRequest, { params: paramsPromise }: { params: Promise<{ id: string; postId: string }> }) {
-  const params = await paramsPromise
-  const { id: boardId, postId } = params
+  const { id: boardId, postId } = await paramsPromise
   const session = await getServerSession(authOptions)
   const userId = session?.user?.id
 
@@ -40,7 +42,12 @@ export async function GET(req: NextRequest, { params: paramsPromise }: { params:
       avatar: post.author.image,
       role: 'member'
     },
-    githubIssue: null,
+    githubIssue: post.githubIssueNumber != null ? {
+      linked: true,
+      number: post.githubIssueNumber,
+      url: post.githubIssueUrl || '',
+      status: post.githubIssueStatus || ''
+    } : undefined,
     userVote,
     tags: post.tags
   })

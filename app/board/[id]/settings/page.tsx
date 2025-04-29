@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react"
 import { useRouter, useSearchParams, useParams } from "next/navigation"
+import { useSession } from 'next-auth/react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -57,7 +58,7 @@ export default function BoardSettingsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const defaultTab = searchParams.get("tab") || "general"
-  const [userRole, setUserRole] = useState(searchParams.get("userRole") || "")
+  const [userRole, setUserRole] = useState<string | null>(null)
 
   console.log("[BoardSettingsPage] Checking permissions. userRole from query param:", userRole)
 
@@ -66,8 +67,10 @@ export default function BoardSettingsPage() {
   const [boardImage, setBoardImage] = useState("")
   const [isPrivate, setIsPrivate] = useState(false)
   const [members, setMembers] = useState<Member[]>([])
-  const [isGithubConnected, setIsGithubConnected] = useState(true)
-  const [githubRepo, setGithubRepo] = useState("acme/project-vision")
+  const [isGithubConnected, setIsGithubConnected] = useState(false)
+  const [githubRepo, setGithubRepo] = useState("")
+  const [createdById, setCreatedById] = useState<string>("")
+  const [issueCount, setIssueCount] = useState<number>(0)
 
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState("")
@@ -102,17 +105,19 @@ export default function BoardSettingsPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([])
   const [isLoadingAudit, setIsLoadingAudit] = useState(false)
 
+  // derive userRole from session and membership
+  const { data: session, status: sessionStatus } = useSession()
   useEffect(() => {
-    if (members.length > 0 && typeof window !== "undefined") {
-      const currentUserId = window.sessionStorage.getItem("userId")
-      const current = members.find((m) => m.id === currentUserId)
-      if (current) setUserRole(current.role.toLowerCase())
-      if (!current) {
-        const creator = members.find((m) => m.role === "CREATOR" && m.id === currentUserId)
-        if (creator) setUserRole("creator")
+    if (sessionStatus === 'authenticated') {
+      const currentId = session.user.id
+      if (createdById === currentId) {
+        setUserRole('creator')
+      } else {
+        const membership = members.find(m => m.id === currentId && m.status === 'ACTIVE')
+        if (membership) setUserRole(membership.role.toLowerCase())
       }
     }
-  }, [members])
+  }, [sessionStatus, session, createdById, members])
 
   const fetchBoardDetails = useCallback(async () => {
     if (!boardId) return false
@@ -126,6 +131,10 @@ export default function BoardSettingsPage() {
         throw new Error(message)
       }
       const data = await res.json()
+      // track creator for permission checks
+      setCreatedById(data.createdById || "")
+      setIsGithubConnected(data.githubEnabled)
+      setGithubRepo(data.githubRepo || "")
       setBoardName(data.name)
       setBoardDescription(data.description || "")
       setBoardImage(data.image || "")
@@ -147,6 +156,15 @@ export default function BoardSettingsPage() {
       setIsFetchingBoard(false)
     }
   }, [boardId, toast, router])
+
+  useEffect(() => {
+    if (boardId && isGithubConnected) {
+      fetch(`/api/boards/${boardId}/github/issues`)
+        .then((res) => (res.ok ? res.json() : []))
+        .then((issues: any[]) => setIssueCount(Array.isArray(issues) ? issues.length : 0))
+        .catch(() => setIssueCount(0))
+    }
+  }, [boardId, isGithubConnected])
 
   const fetchMembers = useCallback(async () => {
     if (!boardId) return false
@@ -426,7 +444,7 @@ export default function BoardSettingsPage() {
   const activeMembers = members.filter((m) => m.status === "ACTIVE")
   const bannedMembers = members.filter((m) => m.status === "BANNED")
 
-  if (isFetchingBoard || isFetchingLists) {
+  if (sessionStatus === 'loading' || isFetchingBoard || isFetchingLists) {
     return (
       <main className="flex-1 container py-6 flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -460,8 +478,11 @@ export default function BoardSettingsPage() {
     )
   }
 
-  if (userRole !== "admin" && userRole !== "moderator" && userRole !== "creator") {
-    console.log("[BoardSettingsPage] Permission denied. Role was:", userRole)
+  // Grant access if admin, moderator, or board creator
+  const currentUserId = session?.user?.id || null
+  const canView = userRole === 'admin' || userRole === 'moderator' || currentUserId === createdById
+  if (!canView) {
+    console.log("[BoardSettingsPage] Permission denied. userRole:", userRole, "creatorId:", createdById)
     return (
       <main className="flex-1 container py-6 flex items-center justify-center">
         <p className="text-muted-foreground">You do not have permission to view board settings.</p>
@@ -835,28 +856,13 @@ export default function BoardSettingsPage() {
                       <h3 className="text-lg font-medium mb-2">Synced Issues</h3>
                       <p className="text-muted-foreground mb-4">GitHub issues that are synced with this board.</p>
                       <div className="flex justify-between items-center">
-                        <span className="text-2xl font-bold">12</span>
+                        <span className="text-2xl font-bold">{issueCount}</span>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => router.push(`/board/${boardId}?tab=github`)}
                         >
                           View Issues
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="p-4 border rounded-lg">
-                      <h3 className="text-lg font-medium mb-2">Linked Posts</h3>
-                      <p className="text-muted-foreground mb-4">Feedback posts that are linked to GitHub issues.</p>
-                      <div className="flex justify-between items-center">
-                        <span className="text-2xl font-bold">8</span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => router.push(`/board/${boardId}/settings/github`)}
-                        >
-                          Manage Links
                         </Button>
                       </div>
                     </div>

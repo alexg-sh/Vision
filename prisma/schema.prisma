@@ -167,6 +167,9 @@ model Board {
   notifications  Notification[]
   members        BoardMember[]
   auditLogs      AuditLog[]
+  githubEnabled  Boolean        @default(false)
+  githubRepo     String?        @db.VarChar(255)
+  githubToken    String?        @db.Text
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
@@ -208,9 +211,12 @@ model Post {
   tags          String[]       @default([])
   comments      Comment[]
   postVotes     PostVote[]
+  notifications  Notification[]  // Restore relation for notifications
+  githubIssueNumber Int?
+  githubIssueUrl    String?      @db.VarChar(255)
+  githubIssueStatus String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
-  notifications Notification[]
 
   @@index([boardId])
   @@index([authorId])

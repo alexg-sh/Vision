@@ -11,6 +11,10 @@ type PostWithDetails = Post & {
     comments: number;
   };
   postVotes?: PostVote[];
+  // Add optional GitHub fields from the base Post model
+  githubIssueNumber?: number | null;
+  githubIssueUrl?: string | null;
+  githubIssueStatus?: string | null;
 };
 
 interface RouteContext {
@@ -67,6 +71,13 @@ export async function GET(req: NextRequest, { params: paramsPromise }: RouteCont
         commentCount: post._count.comments,
         voteCount: post._count.postVotes,
         userVote: userVote,
+        // GitHub issue link data
+        githubIssue: post.githubIssueNumber != null ? {
+          linked: true,
+          number: post.githubIssueNumber,
+          url: post.githubIssueUrl || '',
+          status: post.githubIssueStatus || ''
+        } : null,
       };
     });
 

@@ -3,11 +3,12 @@
 import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { ArrowLeft, ThumbsDown, ThumbsUp, Github } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 // Define interfaces for data structures
 interface Author {
@@ -54,7 +55,6 @@ interface Comment {
   replies?: Reply[];
 }
 
-
 export default function PostDetailPage({ params: paramsPromise }: { params: Promise<{ id: string; postId: string }> }) {
   const params = use(paramsPromise)
   const boardId = params.id
@@ -64,6 +64,14 @@ export default function PostDetailPage({ params: paramsPromise }: { params: Prom
   const [comments, setComments] = useState<Comment[]>([])
   const [newComment, setNewComment] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // GitHub integration state
+  const { toast } = useToast()
+  const [repoEnabled, setRepoEnabled] = useState(false)
+  const [issues, setIssues] = useState<Array<{ number: number; title: string; url: string }>>([])
+  const [issuesLoading, setIssuesLoading] = useState(false)
+  const [issuesError, setIssuesError] = useState<string | null>(null)
+  const [selectedIssue, setSelectedIssue] = useState<number | null>(null)
 
   useEffect(() => {
     async function fetchData() {
@@ -79,6 +87,30 @@ export default function PostDetailPage({ params: paramsPromise }: { params: Prom
       }
     }
     fetchData()
+
+    // Load GitHub issues if board integration enabled
+    async function loadIntegration() {
+      try {
+        const res = await fetch(`/api/boards/${boardId}`)
+        if (!res.ok) return
+        const data = await res.json()
+        if (data.githubEnabled) {
+          setRepoEnabled(true)
+          setIssuesLoading(true)
+          const ir = await fetch(`/api/boards/${boardId}/github/issues`)
+          if (ir.ok) {
+            setIssues(await ir.json())
+          } else {
+            setIssuesError('Failed to load GitHub issues')
+          }
+        }
+      } catch (err: any) {
+        setIssuesError(err.message)
+      } finally {
+        setIssuesLoading(false)
+      }
+    }
+    loadIntegration()
   }, [boardId, postId])
 
   const handleVote = async (voteType: 1 | -1) => {
@@ -287,6 +319,62 @@ export default function PostDetailPage({ params: paramsPromise }: { params: Prom
                 </div>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {repoEnabled && post && (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>GitHub Issue</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {post.githubIssue?.linked ? (
+              <div className="flex items-center gap-2">
+                <a href={post.githubIssue.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                  #{post.githubIssue.number} {post.githubIssue.status}
+                </a>
+                <Button size="sm" variant="outline" onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/boards/${boardId}/posts/${postId}/github`, { method: 'DELETE' })
+                    if (!res.ok) throw new Error(await res.text())
+                    setPost({ ...post, githubIssue: undefined })
+                    toast({ title: 'Issue unlinked' })
+                  } catch (err: any) { toast({ variant: 'destructive', title: 'Error', description: err.message }) }
+                }}>
+                  Unlink
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                {issuesLoading ? (
+                  <span>Loading issues...</span>
+                ) : issuesError ? (
+                  <span className="text-destructive">{issuesError}</span>
+                ) : (
+                  <select className="border p-1 rounded" value={selectedIssue ?? ''} onChange={e => setSelectedIssue(Number(e.target.value))}>
+                    <option value="">-- select issue --</option>
+                    {issues.map(i => <option key={i.number} value={i.number}>#{i.number} {i.title}</option>)}
+                  </select>
+                )}
+                <Button size="sm" disabled={!selectedIssue} onClick={async () => {
+                  if (!selectedIssue) return
+                  const issue = issues.find(i => i.number === selectedIssue)
+                  if (!issue) return
+                  try {
+                    const res = await fetch(`/api/boards/${boardId}/posts/${postId}/github`, {
+                      method: 'PATCH', headers: {'Content-Type':'application/json'},
+                      body: JSON.stringify({ issueNumber: issue.number, issueUrl: issue.url, issueStatus: 'OPEN' })
+                    })
+                    if (!res.ok) throw new Error((await res.json()).message)
+                    setPost({ ...post, githubIssue: { linked: true, number: issue.number, url: issue.url, status: 'OPEN' } })
+                    toast({ title: 'Issue linked' })
+                  } catch (err: any) { toast({ variant: 'destructive', title: 'Error', description: err.message }) }
+                }}>
+                  Link Issue
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

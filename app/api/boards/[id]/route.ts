@@ -22,6 +22,9 @@ export async function GET(_req: Request, { params }: RouteContext) {
       description: true,
       image: true,
       isPrivate: true,
+      githubEnabled: true,       // include GitHub integration flag
+      githubRepo: true,          // include linked repository
+      createdById: true          // include creator for permissions
     },
   });
   if (!board) {
@@ -57,7 +60,7 @@ export async function PUT(req: Request, { params }: RouteContext) {
     });
     // Create audit log for board update
     await createAuditLog({
-      orgId: before?.organizationId ?? null,
+      orgId: before?.organizationId ?? undefined,
       boardId: resolvedParams.id,
       action: 'UPDATE_BOARD',
       entityType: 'BOARD',

@@ -5,15 +5,14 @@ import { prisma } from '@/lib/prisma';
 import { enforceActiveBoardMembership } from '@/lib/permissions'; // Use this to ensure user is part of the board
 
 interface RouteContext {
-  params: {
-    id: string; // boardId
-  };
+  params: Promise<{ id: string }>; // boardId as promise
 }
 
 // GET /api/boards/[id]/audit-log
 export async function GET(req: Request, { params }: RouteContext) {
   const session = await getServerSession(authOptions);
-  const boardId = params.id;
+  const resolvedParams = await params;
+  const boardId = resolvedParams.id;
 
   if (!session?.user?.id) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
