@@ -2,6 +2,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
+import { createAuditLog } from '@/lib/audit-log';
 
 interface RouteContext {
   params: Promise<{ id: string }>; // Corrected: params can be a Promise
@@ -35,6 +36,11 @@ export async function PUT(req: Request, { params }: RouteContext) {
   if (!session?.user?.id) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
+  // Fetch existing board data for audit log
+  const before = await prisma.board.findUnique({
+    where: { id: resolvedParams.id },
+    select: { name: true, description: true, organizationId: true }
+  });
   const { name, description, image, isPrivate } = await req.json();
   if (!name || typeof name !== 'string') {
     return NextResponse.json({ message: 'Board name is required' }, { status: 400 });
@@ -48,6 +54,21 @@ export async function PUT(req: Request, { params }: RouteContext) {
         image: image ?? null,
         isPrivate: Boolean(isPrivate),
       },
+    });
+    // Create audit log for board update
+    await createAuditLog({
+      orgId: before?.organizationId ?? null,
+      boardId: resolvedParams.id,
+      action: 'UPDATE_BOARD',
+      entityType: 'BOARD',
+      entityId: updated.id,
+      entityName: updated.name,
+      details: {
+        oldName: before?.name,
+        newName: updated.name,
+        oldDescription: before?.description,
+        newDescription: updated.description,
+      }
     });
     return NextResponse.json(updated);
   } catch (error: any) {

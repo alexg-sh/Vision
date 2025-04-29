@@ -40,7 +40,6 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useToast } from "@/hooks/use-toast"
 
-// Define the Member type including status
 interface Member {
   id: string
   name: string | null
@@ -91,20 +90,26 @@ export default function BoardSettingsPage() {
   const [banReason, setBanReason] = useState("")
   const [isUnbanning, setIsUnbanning] = useState<string | null>(null)
 
+  interface AuditLogEntry {
+    id: string
+    action: string
+    entityType: string
+    entityId: string
+    details: any
+    timestamp: string
+    user: { id: string; name: string | null; image: string | null }
+  }
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([])
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false)
+
   useEffect(() => {
-    // Try to get the userRole from the board members list (if available)
-    // Or fetch from an API if needed
-    // For now, try to infer from members or window.session if available
-    // This is a fallback; ideally, userRole should be passed as a prop from the parent page
-    if (members.length > 0 && typeof window !== 'undefined') {
-      const currentUserId = window.sessionStorage.getItem('userId')
-      const current = members.find(m => m.id === currentUserId)
+    if (members.length > 0 && typeof window !== "undefined") {
+      const currentUserId = window.sessionStorage.getItem("userId")
+      const current = members.find((m) => m.id === currentUserId)
       if (current) setUserRole(current.role.toLowerCase())
-      // --- ADD: If not found, check if you are the creator (role === 'CREATOR') ---
       if (!current) {
-        // Try to find a member with role 'CREATOR' and currentUserId
-        const creator = members.find(m => m.role === 'CREATOR' && m.id === currentUserId)
-        if (creator) setUserRole('creator')
+        const creator = members.find((m) => m.role === "CREATOR" && m.id === currentUserId)
+        if (creator) setUserRole("creator")
       }
     }
   }, [members])
@@ -176,6 +181,25 @@ export default function BoardSettingsPage() {
       fetchMembers()
     }
   }, [boardId, fetchBoardDetails, fetchMembers])
+
+  useEffect(() => {
+    if (!boardId) return
+    const loadAudit = async () => {
+      setIsLoadingAudit(true)
+      try {
+        const res = await fetch(`/api/boards/${boardId}/audit-log`)
+        if (!res.ok) throw new Error((await res.json()).message || "Failed to load audit logs")
+        const data: AuditLogEntry[] = await res.json()
+        setAuditLogs(data)
+      } catch (err: any) {
+        console.error("Error loading audit logs:", err)
+        toast({ variant: "destructive", title: "Error", description: err.message })
+      } finally {
+        setIsLoadingAudit(false)
+      }
+    }
+    loadAudit()
+  }, [boardId])
 
   const handleSaveSettings = async () => {
     if (!boardId) return
@@ -436,7 +460,7 @@ export default function BoardSettingsPage() {
     )
   }
 
-  if (userRole !== 'admin' && userRole !== 'moderator' && userRole !== 'creator') {
+  if (userRole !== "admin" && userRole !== "moderator" && userRole !== "creator") {
     console.log("[BoardSettingsPage] Permission denied. Role was:", userRole)
     return (
       <main className="flex-1 container py-6 flex items-center justify-center">
@@ -865,12 +889,43 @@ export default function BoardSettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Audit Log</CardTitle>
-              <CardDescription>Track actions performed on this board. (Data fetched separately)</CardDescription>
+              <CardDescription>Track actions performed on this board.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                <p>Audit log display component goes here.</p>
-              </div>
+              {isLoadingAudit ? (
+                <div className="flex justify-center p-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : auditLogs.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No audit log entries found for this board.</p>
+                </div>
+              ) : (
+                <ul className="space-y-4">
+                  {auditLogs.map((log) => (
+                    <li key={log.id} className="p-4 border rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-medium">{log.user.name || "Unknown"}</span>{" "}
+                          <span>
+                            performed <strong>{log.action.replace("_", " ").toLowerCase()}</strong>
+                          </span>
+                        </div>
+                        <span className="text-sm text-muted-foreground">
+                          {new Date(log.timestamp).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="mt-2 text-sm">
+                        {log.details && (
+                          <pre className="whitespace-pre-wrap text-gray-700">
+                            {JSON.stringify(log.details, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

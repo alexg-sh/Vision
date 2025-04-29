@@ -56,7 +56,7 @@ export async function GET(req: Request, { params }: RouteContext) {
       action: log.action,
       entityType: log.entityType,
       entityId: log.entityId,
-      details: log.details ? JSON.parse(log.details) : null,
+      details: log.details ?? null,
       timestamp: log.createdAt,
       user: {
         id: log.user.id,
