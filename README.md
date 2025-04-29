@@ -1,6 +1,24 @@
 # Project Vision
 
-Project Vision is a web application designed to help teams collect, organize, and prioritize feedback, ideas, and bug reports. It provides a structured platform for collaboration within organizations or for individual use.
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/your-repo)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen)]()
+[![Coverage](https://img.shields.io/badge/coverage-—%25-lightgrey)]()
+[![License](https://img.shields.io/badge/license-MIT-blue)]()
+
+A web application to collect, organize, and prioritize feedback, ideas, and bug reports, enabling seamless team collaboration.
+
+## Table of Contents
+
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+- [Environment Variables](#environment-variables)
+- [Folder Structure](#folder-structure)
+- [Scripts](#scripts)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Features
 
@@ -94,3 +112,74 @@ Follow these instructions to set up the project locally for development.
 
 6.  **Open the application:**
     Navigate to `http://localhost:3000` (or the port specified) in your web browser.
+
+## Environment Variables
+
+Create a `.env.local` file in the root with the following keys:
+
+```bash
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your_nextauth_secret
+# OAuth providers (if used):
+GITHUB_ID=your_github_client_id
+GITHUB_SECRET=your_github_client_secret
+GOOGLE_ID=your_google_client_id
+GOOGLE_SECRET=your_google_client_secret
+```
+
+## Folder Structure
+
+```
+├── app/                # Next.js App Router pages and API routes
+├── components/         # Reusable React components
+├── lib/                # Utility functions and Prisma client
+├── prisma/             # Prisma schema & migrations
+├── public/             # Static assets
+├── styles/             # Global and component styles
+├── tests/              # Playwright end-to-end tests
+└── components/ui       # Shadcn UI components and tests
+```
+
+## Scripts
+
+```bash
+pnpm install          # Install dependencies
+pnpm dev              # Run development server
+pnpm build            # Build for production
+pnpm start            # Start production server
+pnpm prisma migrate dev  # Apply database migrations
+pnpm prisma generate   # Regenerate Prisma client
+pnpm lint             # Run linter (Next.js)
+pnpm test             # Run unit tests (Jest)
+pnpm test:watch       # Run Jest in watch mode
+pnpm test:e2e          # Run Playwright E2E tests
+```
+
+## Testing
+
+- Unit tests: `pnpm test`
+- Watch mode: `pnpm test:watch`
+- End-to-end tests: `pnpm test:e2e`
+
+Ensure the development server is running (`pnpm dev`) before running E2E tests.
+
+## Deployment
+
+This app is production-ready for deployment on Vercel:
+
+1. Push your repo to GitHub.
+2. Import the project in Vercel.
+3. Set environment variables in Vercel dashboard.
+4. Enable automatic `pnpm prisma migrate deploy` in Post-build hooks.
+
+You can also deploy via Docker:
+
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY . .
+RUN pnpm install && pnpm build
+CMD ["pnpm", "start"]
+```
+

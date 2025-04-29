@@ -46,7 +46,7 @@ export async function PUT(request: Request) {
 
     // Find or create UserPreferences record
     // Using upsert ensures a record exists whether it's the first time or not
-    const updatedPreferences = await prisma.userPreferences.upsert({
+    const updatedPreferences = await prisma.userPreference.upsert({
       where: { userId: userId },
       update: {
         // Only update fields that are present in the request body.settings
@@ -93,7 +93,7 @@ export async function GET(request: Request) {
     const userId = session.user.id;
 
     try {
-        const preferences = await prisma.userPreferences.findUnique({
+        const preferences = await prisma.userPreference.findUnique({
             where: { userId: userId },
         });
 

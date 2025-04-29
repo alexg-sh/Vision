@@ -41,10 +41,10 @@ model User {
   commentVotes         CommentVote[]
   followers            Follow[]             @relation("followers")
   following            Follow[]             @relation("following")
-  preferences          UserPreferences?
+  preference           UserPreference?
 }
 
-model UserPreferences {
+model UserPreference {
   id                        String   @id @default(cuid())
   userId                    String   @unique
   user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
