@@ -5,181 +5,171 @@
 [![Coverage](https://img.shields.io/badge/coverage-—%25-lightgrey)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 
-A web application to collect, organize, and prioritize feedback, ideas, and bug reports, enabling seamless team collaboration.
+## Abstract
+
+Project Vision is a web application designed to collect, organize, and prioritize feedback, ideas, and bug reports within collaborative teams. This platform enables users to create and manage organizations, boards, and posts, while providing real-time notifications, audit logs, and role-based access control. Developed as part of a master's thesis, Project Vision demonstrates the integration of modern web technologies (Next.js, TypeScript, Prisma, NextAuth.js, and Tailwind CSS) to deliver a scalable and user-centric feedback management system.
 
 ## Table of Contents
 
+- [Project Overview](#project-overview)
+- [Architecture](#architecture)
+- [User Guide](#user-guide)
+- [Developer Guide](#developer-guide)
 - [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Getting Started](#getting-started)
-- [Environment Variables](#environment-variables)
 - [Folder Structure](#folder-structure)
 - [Scripts](#scripts)
 - [Testing](#testing)
 - [Deployment](#deployment)
-- [Contributing](#contributing)
 - [License](#license)
+- [References](#references)
 
-## Features
+## Project Overview
 
-| Feature                 | Status      | Description                                                                 |
-| :---------------------- | :---------- | :-------------------------------------------------------------------------- |
-| User Authentication     | ✅ Implemented | Secure sign-up, login, and session management using NextAuth.js.            |
-| Organization Management | ✅ Implemented | Create organizations, manage members, roles (Admin, Member), and privacy.   |
-| Board Management        | ✅ Implemented | Create public or private boards within organizations or as personal boards. |
-| Post Creation           | ✅ Implemented | Create different types of posts (e.g., Feedback, Polls, Announcements).     |
-| Voting System           | ✅ Implemented | Upvote/downvote posts.                                                      |
-| Commenting              | ✅ Implemented | Discuss posts through comments.                                             |
-| User Profiles           | ✅ Implemented | View user profiles.                                                         |
-| Discoverability         | ✅ Implemented | Discover public organizations and boards.                                   |
-| Notifications           | ✅ Implemented | Receive notifications for relevant activities.                              |
-| Audit Logs              | ✅ Implemented | Track important actions within organizations and boards.                    |
-| Role-Based Access       | ✅ Implemented | Control permissions based on user roles (Org Admin/Member, Board roles).    |
-| Member Management       | ✅ Implemented | Invite, remove, ban/unban members from organizations.                       |
-| Dark Mode               | ✅ Implemented | Switch between light and dark themes.                                       |
-| Keyboard Shortcuts      | ✅ Implemented | Use keyboard shortcuts for common actions.                                  |
-| Custom Fields           | 🏗️ Partial    | Basic structure for custom fields exists.                                   |
-| API                     | ✅ Implemented | RESTful API for core functionalities.                                       |
-| Image Uploads           | 🚧 Planned    | Functionality for uploading images (e.g., board/org images) is planned.     |
-| Search                  | ✅ Implemented | Search organizations and boards.                                            |
-| Onboarding Flow         | ✅ Implemented | Guided setup for new users/organizations.                                   |
+In collaborative environments, gathering and prioritizing stakeholder feedback is critical. Project Vision centralizes feedback collection into customizable boards and workflows. Organizations can define roles (Admin, Member), invite new users, and configure privacy settings. Team members interact through posts, votes, and comments, ensuring transparent decision-making.
 
-**Status Legend:**
-*   ✅ Implemented: Feature is fully implemented.
-*   🏗️ Partial: Feature is partially implemented or in progress.
-*   🚧 Planned: Feature is planned but not yet started.
+### Objectives
 
-## Tech Stack
+- Provide a unified interface for feedback submission and tracking.
+- Enforce access control via role-based permissions.
+- Maintain detailed audit logs for compliance and traceability.
+- Support extensible data models (custom fields, post types).
 
-*   **Framework:** [Next.js](https://nextjs.org/) (App Router)
-*   **Language:** [TypeScript](https://www.typescriptlang.org/)
-*   **Database:** [PostgreSQL](https://www.postgresql.org/) (or compatible based on `DATABASE_URL`)
-*   **ORM:** [Prisma](https://www.prisma.io/)
-*   **Authentication:** [NextAuth.js](https://next-auth.js.org/)
-*   **Styling:** [Tailwind CSS](https://tailwindcss.com/)
-*   **UI Components:** [Shadcn UI](https://ui.shadcn.com/)
-*   **State Management:** React Context API, `useState`
-*   **Package Manager:** [pnpm](https://pnpm.io/)
+## Architecture
 
-## Getting Started
+The application follows a modular, layered architecture:
 
-Follow these instructions to set up the project locally for development.
+1. **Frontend (Next.js App Router)**
+   - Server-side rendering (SSR) and static generation for performance.
+   - Dynamic client components for real-time features (notifications, shortcuts).
+2. **Backend API (Next.js API Routes)**
+   - RESTful endpoints under `/app/api` for CRUD operations.
+   - Authentication via NextAuth.js with support for OAuth providers.
+3. **Database & ORM**
+   - Prisma with PostgreSQL manages schema migrations and queries.
+   - Connection pooling and environment-based configuration.
+4. **Styling & Components**
+   - Tailwind CSS for utility-first styling.
+   - Shadcn UI for reusable component primitives.
+
+```text
+User Browser ↔ Next.js Frontend ↔ Next.js API ↔ Prisma ORM ↔ PostgreSQL
+```  
+
+## User Guide
+
+### Authentication & Access
+
+1. **Sign up / Sign in**: Register or log in using email/password or OAuth providers.
+2. **Organizations**: Create or join an organization. Admins manage members and roles.
+3. **Boards**: Within an organization, create boards (public or private) to categorize feedback.
+
+### Creating & Managing Posts
+
+- **New Post**: Select type (Feedback, Poll, Announcement), add title, description, and attachments.
+- **Voting**: Upvote or downvote posts to prioritize high-impact items.
+- **Comments**: Discuss posts and tag team members using `@mentions`.
+- **Custom Fields**: Extend posts with organization-specific metadata (status, priority).
+
+### Notifications & Audit Logs
+
+- **Notifications**: Receive in-app alerts for new posts, comments, and mentions.
+- **Audit Logs**: Admins view change history (member invites, role changes) under the organization dashboard.
+
+## Developer Guide
 
 ### Prerequisites
 
-*   [Node.js](https://nodejs.org/) (LTS version recommended)
-*   [pnpm](https://pnpm.io/installation)
-*   A running [PostgreSQL](https://www.postgresql.org/download/) database instance.
+- Node.js (LTS) and pnpm
+- PostgreSQL database
 
-### Installation & Setup
-
-1.  **Clone the repository:**
-    ```bash
-    git clone <your-repository-url>
-    cd Project_Vision
-    ```
-
-2.  **Install dependencies:**
-    ```bash
-    pnpm install
-    ```
-
-3.  **Set up environment variables:**
-    *   Copy the example environment file:
-        ```bash
-        cp .env.example .env.local
-        ```
-    *   Update `.env.local` with your specific configuration:
-        *   `DATABASE_URL`: Your PostgreSQL connection string (e.g., `postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public`)
-        *   `NEXTAUTH_URL`: The base URL of your application during development (e.g., `http://localhost:3000`)
-        *   `NEXTAUTH_SECRET`: A secret key for NextAuth. Generate one using `openssl rand -base64 32` or visit `https://generate-secret.vercel.app/32`.
-        *   Add any other required variables for OAuth providers (GitHub, Google, etc.) if you plan to use them.
-
-4.  **Run database migrations:**
-    *   This will synchronize your database schema with the Prisma schema definition.
-    ```bash
-    pnpm prisma migrate dev
-    ```
-    *   *(Optional)* If you need to generate the Prisma client explicitly:
-        ```bash
-        pnpm prisma generate
-        ```
-
-5.  **Run the development server:**
-    ```bash
-    pnpm dev
-    ```
-
-6.  **Open the application:**
-    Navigate to `http://localhost:3000` (or the port specified) in your web browser.
-
-## Environment Variables
-
-Create a `.env.local` file in the root with the following keys:
+### Setup & Installation
 
 ```bash
-DATABASE_URL=postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your_nextauth_secret
-# OAuth providers (if used):
-GITHUB_ID=your_github_client_id
-GITHUB_SECRET=your_github_client_secret
-GOOGLE_ID=your_google_client_id
-GOOGLE_SECRET=your_google_client_secret
+# Clone repository
+git clone <repo-url>
+cd Project_Vision
+
+# Install dependencies
+pnpm install
+
+# Configure environment variables
+cp .env.example .env.local
+# Update .env.local with DATABASE_URL, NEXTAUTH_URL, NEXTAUTH_SECRET
+
+# Run migrations and generate client
+pnpm prisma migrate dev
+pnpm prisma generate
 ```
+
+### Running Locally
+
+```bash
+# Start development server
+pnpm dev
+```
+
+Visit `http://localhost:3000` to access the application.
+
+## Features
+
+- **Authentication**: Secure login/signup with NextAuth.js.
+- **Organizations & Boards**: Hierarchical grouping of feedback.
+- **Post Types**: Feedback, Polls, Announcements.
+- **Voting & Comments**: Prioritize and discuss posts.
+- **Role-Based Access**: Admin and Member permissions.
+- **Notifications**: Real-time alerts for key events.
+- **Audit Logs**: Track critical actions.
+- **Dark Mode** and **Keyboard Shortcuts** for improved UX.
 
 ## Folder Structure
 
 ```
-├── app/                # Next.js App Router pages and API routes
-├── components/         # Reusable React components
-├── lib/                # Utility functions and Prisma client
-├── prisma/             # Prisma schema & migrations
-├── public/             # Static assets
-├── styles/             # Global and component styles
-├── tests/              # Playwright end-to-end tests
-└── components/ui       # Shadcn UI components and tests
+/ ── app/        # Next.js App Router pages and API routes
+    ├─ globals.css
+    ├─ layout.tsx
+    ├─ page.tsx
+    └─ api/
+/ components/   # Reusable React components
+/ lib/          # Utility functions and Prisma client
+/ prisma/       # Schema and migrations
+/ public/       # Static assets
+/ styles/       # Global and component styles
+/ tests/        # End-to-end tests (Playwright)
 ```
 
 ## Scripts
 
 ```bash
-pnpm install          # Install dependencies
-pnpm dev              # Run development server
-pnpm build            # Build for production
-pnpm start            # Start production server
-pnpm prisma migrate dev  # Apply database migrations
-pnpm prisma generate   # Regenerate Prisma client
-pnpm lint             # Run linter (Next.js)
-pnpm test             # Run unit tests (Jest)
-pnpm test:watch       # Run Jest in watch mode
-pnpm test:e2e          # Run Playwright E2E tests
+pnpm install         # Install dependencies
+pnpm dev             # Development server
+pnpm build           # Build for production
+pnpm start           # Start production server
+pnpm prisma migrate dev  # Database migrations
+pnpm prisma generate    # Generate Prisma client
+pnpm lint            # Lint codebase
+pnpm test            # Run unit tests (Jest)
+pnpm test:e2e        # Run E2E tests (Playwright)
 ```
 
 ## Testing
 
-- Unit tests: `pnpm test`
-- Watch mode: `pnpm test:watch`
-- End-to-end tests: `pnpm test:e2e`
-
-Ensure the development server is running (`pnpm dev`) before running E2E tests.
+- **Unit Tests**: `pnpm test`
+- **E2E Tests**: `pnpm test:e2e` (ensure dev server is running)
 
 ## Deployment
 
-This app is production-ready for deployment on Vercel:
+The application can be deployed to Vercel or any Node.js hosting with the following steps:
 
-1. Push your repo to GitHub.
-2. Import the project in Vercel.
-3. Set environment variables in Vercel dashboard.
-4. Enable automatic `pnpm prisma migrate deploy` in Post-build hooks.
+1. Push code to Git repository.
+2. Configure environment variables in hosting platform.
+3. For Vercel, enable `pnpm prisma migrate deploy` in build hooks.
 
-You can also deploy via Docker:
 
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY . .
-RUN pnpm install && pnpm build
-CMD ["pnpm", "start"]
-```
+## References
+
+- Next.js App Router
+- Prisma Documentation
+- NextAuth.js Documentation
+- Tailwind CSS
+- Shadcn UI
 
