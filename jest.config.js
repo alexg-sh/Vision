@@ -18,6 +18,7 @@ const customJestConfig = {
   },
   preset: 'ts-jest',
   testPathIgnorePatterns: ['<rootDir>/tests/'],
+  verbose: true,
 }
 
 module.exports = createJestConfig(customJestConfig)

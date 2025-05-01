@@ -15,7 +15,6 @@ export const metadata: Metadata = {
   title: "Project Vision - Collect and organize feedback",
   description:
     "Project Vision helps teams collect, organize, and prioritize feedback from users, team members, and stakeholders in one place.",
-    generator: 'v0.dev'
 }
 
 export default async function RootLayout({
