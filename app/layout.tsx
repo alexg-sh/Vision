@@ -3,11 +3,11 @@ import "@/app/globals.css"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
-import AuthProvider from "@/components/auth/session-provider" // Import AuthProvider
-import { getServerSession } from "next-auth/next" // Import getServerSession
-import { authOptions } from "@/app/api/auth/[...nextauth]/route" // Import authOptions
-import { Toaster } from "@/components/ui/sonner" // Import the Toaster
-import { NotificationProvider } from "@/context/notification-context"; // Import NotificationProvider
+import AuthProvider from "@/components/auth/session-provider"
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+import { Toaster } from "@/components/ui/sonner"
+import { NotificationProvider } from "@/context/notification-context";
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -22,7 +22,6 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  // Fetch session on the server
   const session = await getServerSession(authOptions)
 
   return (
