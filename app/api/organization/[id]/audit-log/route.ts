@@ -2,15 +2,14 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { enforceActiveMembership } from '@/lib/permissions'; // Use this to ensure user is part of the org
+import { enforceActiveMembership } from '@/lib/permissions';
 
 interface RouteContext {
   params: {
-    id: string; // organizationId
+    id: string;
   };
 }
 
-// GET /api/organization/[id]/audit-log
 export async function GET(req: Request, { params }: RouteContext) {
   const session = await getServerSession(authOptions);
   const organizationId = params.id;
@@ -20,26 +19,24 @@ export async function GET(req: Request, { params }: RouteContext) {
   }
   const requestingUserId = session.user.id;
 
-  // 1. Check Permissions: User must be an active member of the organization to view logs
   const permissionCheck = await enforceActiveMembership(requestingUserId, organizationId);
   if (permissionCheck instanceof NextResponse) {
-    return permissionCheck; // User is not an active member or is banned
+    return permissionCheck;
   }
 
   try {
-    // 2. Fetch Audit Logs for the organization
     const auditLogs = await prisma.auditLog.findMany({
       where: {
         organizationId: organizationId,
       },
       include: {
-        user: { select: { id: true, name: true, image: true } }, // User who performed the action
-        board: { select: { id: true, name: true } }, // Associated board, if any
+        user: { select: { id: true, name: true, image: true } },
+        board: { select: { id: true, name: true } },
       },
       orderBy: {
-        createdAt: 'desc', // Show newest logs first
+        createdAt: 'desc',
       },
-      take: 100, // Limit the number of logs returned for performance
+      take: 100,
     }) as Array<{
       id: string;
       action: string;
@@ -51,13 +48,12 @@ export async function GET(req: Request, { params }: RouteContext) {
       board: { id: string; name: string } | null;
     }>;
 
-    // 3. Format the response (optional, but good practice)
     const formattedLogs = auditLogs.map(log => ({
       id: log.id,
       action: log.action,
       entityType: log.entityType,
       entityId: log.entityId,
-      details: log.details ? JSON.parse(log.details) : null, // Parse JSON details
+      details: log.details ? JSON.parse(log.details) : null,
       timestamp: log.createdAt,
       user: {
         id: log.user.id,

@@ -5,7 +5,6 @@ import { prisma } from '@/lib/prisma'
 
 interface RouteContext { params: Promise<{ id: string; postId: string }> }
 
-// PATCH /api/boards/[id]/posts/[postId]/github
 export async function PATCH(req: Request, { params }: RouteContext) {
   const { id: boardId, postId } = await params
   const session = await getServerSession(authOptions)
@@ -36,7 +35,6 @@ export async function PATCH(req: Request, { params }: RouteContext) {
   }
 }
 
-// DELETE /api/boards/[id]/posts/[postId]/github
 export async function DELETE(_req: Request, { params }: RouteContext) {
   const { postId } = await params
   const session = await getServerSession(authOptions)

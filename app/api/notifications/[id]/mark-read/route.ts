@@ -25,12 +25,10 @@ export async function PATCH(
       where: { id: notificationId },
     });
 
-    // Ensure the notification belongs to the current user
     if (!notification || notification.userId !== userId) {
       return NextResponse.json({ message: "Notification not found or access denied" }, { status: 404 });
     }
 
-    // Only update if it's not already read
     if (!notification.read) {
         await prisma.notification.update({
           where: {

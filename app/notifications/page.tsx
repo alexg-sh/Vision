@@ -9,20 +9,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Bell, MessageSquare, ThumbsUp, User, Settings, CheckCheck, Clock, Megaphone, BarChart3, Check, X, Loader2, Building2 } from "lucide-react"; // Added Building2
+import { Bell, MessageSquare, ThumbsUp, User, Settings, CheckCheck, Clock, Megaphone, BarChart3, Check, X, Loader2, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useNotifications } from "@/hooks/use-notifications"; // Import the hook
+import { useNotifications } from "@/hooks/use-notifications";
 
-// Define a type for the notification structure, including invite details
 // Use the type from the context if it's exported, otherwise redefine or import
-// Assuming the Notification type is available or defined similarly in context
 interface Notification {
   id: string;
   type: string;
   read: boolean;
   content: string;
   timestamp: string;
-  user?: { // User who triggered the notification (e.g., inviter)
+  user?: {
     name: string;
     avatar?: string | null;
   } | null;
@@ -36,7 +34,6 @@ export default function NotificationsPage() {
   const { data: session, status: sessionStatus } = useSession();
   const { toast } = useToast();
 
-  // Use the notifications hook
   const {
     notifications,
     unreadCount,
@@ -44,39 +41,29 @@ export default function NotificationsPage() {
     error,
     markAsRead,
     markAllAsRead,
-    fetchNotifications, // Get fetch function if needed for retry
+    fetchNotifications,
   } = useNotifications();
 
-  // Remove local state for notifications, loading, error
-  // const [notifications, setNotifications] = useState<Notification[]>([]);
-  // const [isLoading, setIsLoading] = useState(true);
-  // const [error, setError] = useState<string | null>(null);
 
-  // Keep state specific to this page's actions
-  const [isMarkingAllRead, setIsMarkingAllRead] = useState(false); // Keep for button loading state
+  const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
   const [processingInviteId, setProcessingInviteId] = useState<string | null>(null);
 
-  // Remove local useEffect for fetching notifications
-  // useEffect(() => { ... fetchNotifications ... }, [sessionStatus, router, toast]);
 
-  // Redirect if not authenticated (can be handled by layout or middleware too)
   useEffect(() => {
     if (sessionStatus === "unauthenticated") {
       router.push("/login");
     }
   }, [sessionStatus, router]);
 
-  // Use markAllAsRead from the hook
   const handleMarkAllAsRead = async () => {
     setIsMarkingAllRead(true);
     try {
-      await markAllAsRead(); // Call the hook function
+      await markAllAsRead();
       toast({
         title: "Success",
         description: "All notifications marked as read.",
       });
     } catch (err) {
-      // Error handling might already be in the hook/context, but can add specific UI feedback here
       console.error("Error marking all as read (page):", err);
       toast({
         title: "Error",
@@ -88,11 +75,9 @@ export default function NotificationsPage() {
     }
   };
 
-  // Use markAsRead from the hook
   const handleMarkAsRead = async (id: string) => {
     try {
-      await markAsRead(id); // Call the hook function
-      // Optional: Add toast feedback if needed, though context might handle it
+      await markAsRead(id);
     } catch (err) {
       console.error(`Error marking notification ${id} as read (page):`, err);
       toast({
@@ -103,7 +88,6 @@ export default function NotificationsPage() {
     }
   };
 
-  // Handler for accepting or declining an invite (remains mostly the same, but updates context state)
   const handleInviteResponse = async (inviteId: string, status: "ACCEPTED" | "DECLINED") => {
     setProcessingInviteId(inviteId);
     try {
@@ -119,11 +103,7 @@ export default function NotificationsPage() {
         throw new Error(result.message || `Failed to ${status.toLowerCase()} invite`);
       }
 
-      // Instead of setNotifications, trigger a re-fetch or update context if needed
-      // The context's optimistic update might handle this, or we might need to enhance it.
-      // For now, let's assume optimistic update in context or polling handles the UI update.
-      // Or trigger a manual refresh:
-      await fetchNotifications(); // Re-fetch to get updated state including invite status
+      await fetchNotifications();
 
       toast({
         title: "Success",
@@ -142,7 +122,6 @@ export default function NotificationsPage() {
     }
   };
 
-  // ... (keep formatTimestamp and getNotificationIcon as they are helpers) ...
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp)
     const now = new Date()
@@ -166,7 +145,6 @@ export default function NotificationsPage() {
   };
 
   const getNotificationIcon = (type: string) => {
-    // Use the same logic as in dashboard-header or import from a shared util
     switch (type) {
       case "MENTION":
         return <User className="h-4 w-4" />
@@ -177,18 +155,15 @@ export default function NotificationsPage() {
       case "SYSTEM":
          return <Settings className="h-4 w-4" />
       case "PROJECT_UPDATE":
-         return <Building2 className="h-4 w-4" /> // Example, adjust as needed
+         return <Building2 className="h-4 w-4" />
       case "TASK_ASSIGNMENT":
-         return <CheckCheck className="h-4 w-4" /> // Example, adjust as needed
-      // Add other types from context
+         return <CheckCheck className="h-4 w-4" />
       default:
         return <Bell className="h-4 w-4" />
     }
   };
 
-  // Use isLoading from the hook
   if (sessionStatus === "loading" || (sessionStatus === "authenticated" && isLoading && notifications.length === 0)) {
-    // Show loading indicator only on initial load when authenticated
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -197,7 +172,6 @@ export default function NotificationsPage() {
     );
   }
 
-  // Use error from the hook
   if (error) {
      return (
        <div className="flex min-h-screen flex-col">
@@ -219,10 +193,8 @@ export default function NotificationsPage() {
      );
   }
 
-  // Render function for individual notification items (use hook's markAsRead)
   const renderNotification = (notification: Notification) => {
     const isInvite = notification.type === "INVITE";
-    // Ensure inviteStatus check handles null/undefined correctly
     const isPendingInvite = isInvite && notification.inviteStatus === "PENDING";
     const isProcessingThisInvite = processingInviteId === notification.inviteId;
 
@@ -310,8 +282,7 @@ export default function NotificationsPage() {
     );
   };
 
-  // Use unreadCount from the hook
-  const currentUnreadCount = notifications.filter((n) => !n.read).length; // Recalculate based on current context state if needed
+  const currentUnreadCount = notifications.filter((n) => !n.read).length;
 
   return (
     <main className="flex-1 container py-6">

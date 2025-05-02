@@ -11,7 +11,6 @@ import { ArrowLeft, Github, RefreshCw, LinkIcon } from "lucide-react"
 
 export default function GitHubIntegrationPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter()
-  // unwrap boardId
   const { id: boardId } = React.use(params)
   const [isConnected, setIsConnected] = useState(false)
   const [repoUrl, setRepoUrl] = useState("")
@@ -22,7 +21,6 @@ export default function GitHubIntegrationPage({ params }: { params: Promise<{ id
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch board status
   useEffect(() => {
     const loadBoard = async () => {
       try {
@@ -40,19 +38,16 @@ export default function GitHubIntegrationPage({ params }: { params: Promise<{ id
     loadBoard()
   }, [boardId])
 
-  // fetch repositories when connected without linked repo
   const fetchRepos = useCallback(async () => {
     setReposError(null)
     try {
       const res = await fetch(`/api/boards/${boardId}/github/repos`)
       const text = await res.text()
       const trimmed = text.trim()
-      // No content means no repos
       if (!trimmed) {
         setRepos([])
         return
       }
-      // HTML or other unexpected content
       if (trimmed.startsWith('<')) {
         throw new Error('Invalid response from GitHub API; please re-authorize your GitHub connection')
       }
@@ -72,12 +67,10 @@ export default function GitHubIntegrationPage({ params }: { params: Promise<{ id
     }
   }, [boardId])
 
-  // load repository list after auth but before linking
   useEffect(() => {
     if (isConnected && !repoUrl) fetchRepos()
   }, [isConnected, repoUrl, fetchRepos])
 
-  // load issues once a repo is linked
   const fetchIssues = useCallback(async () => {
     try {
       const res = await fetch(`/api/boards/${boardId}/github/issues`)
@@ -107,7 +100,6 @@ export default function GitHubIntegrationPage({ params }: { params: Promise<{ id
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ githubEnabled: true, githubRepo: selectedRepo }),
       })
-      // Safely parse JSON or fallback to handle HTML/errors
       const text = await res.text()
       let data: any
       try {
@@ -119,7 +111,6 @@ export default function GitHubIntegrationPage({ params }: { params: Promise<{ id
       if (!res.ok) {
         throw new Error(data.message || `Link failed: ${res.status}`)
       }
-      // Success
       setIsConnected(true)
       setRepoUrl(selectedRepo)
     } catch (err: any) {
@@ -216,7 +207,6 @@ export default function GitHubIntegrationPage({ params }: { params: Promise<{ id
                 {issues.map(issue => (
                   <li key={issue.number}>
                     <a href={issue.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
-                      #{issue.number} {issue.title}
                     </a>
                   </li>
                 ))}

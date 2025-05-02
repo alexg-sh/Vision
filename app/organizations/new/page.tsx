@@ -10,13 +10,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Loader2, Building2 } from "lucide-react"
 import DashboardHeader from "@/components/dashboard-header"
-import { toast } from "sonner" // Assuming you use sonner for toasts
+import { toast } from "sonner"
 
 export default function CreateOrganizationPage() {
   const router = useRouter()
   const [orgName, setOrgName] = useState("")
   const [orgDescription, setOrgDescription] = useState("")
-  const [orgImageUrl, setOrgImageUrl] = useState("") // Optional image URL
+  const [orgImageUrl, setOrgImageUrl] = useState("")
   const [isPrivate, setIsPrivate] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -32,13 +32,13 @@ export default function CreateOrganizationPage() {
     setError(null)
 
     try {
-      const response = await fetch('/api/organizations', { // API endpoint to create org
+      const response = await fetch('/api/organizations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: orgName,
           description: orgDescription,
-          imageUrl: orgImageUrl || null, // Send null if empty
+          imageUrl: orgImageUrl || null,
           isPrivate: isPrivate,
         }),
       });
@@ -50,17 +50,15 @@ export default function CreateOrganizationPage() {
       }
 
       toast.success(`Organization "${data.name}" created successfully!`);
-      // Redirect to the newly created organization's page
       router.push(`/organization/${data.id}`);
-      router.refresh(); // Refresh server components
+      router.refresh();
 
     } catch (err: any) {
       console.error("Error creating organization:", err);
       setError(err.message || "An unexpected error occurred.");
       toast.error("Error creating organization", { description: err.message });
-      setIsLoading(false); // Stop loading on error
+      setIsLoading(false);
     }
-    // No finally block needed here, loading stops on error or success redirect
   }
 
   return (

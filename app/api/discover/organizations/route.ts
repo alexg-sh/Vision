@@ -4,7 +4,6 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 export async function GET(req: Request) {
-  // Get current user session to include private organizations for members
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
   let membershipOrgIds: string[] = [];
@@ -20,8 +19,8 @@ export async function GET(req: Request) {
     const organizations = await prisma.organization.findMany({
       where: {
         OR: [
-          { isPrivate: false },                      // public orgs
-          { id: { in: membershipOrgIds } }           // private orgs where user is a member
+          { isPrivate: false },
+          { id: { in: membershipOrgIds } }
         ]
       },
       select: {
@@ -33,13 +32,13 @@ export async function GET(req: Request) {
         createdAt: true,
         _count: {
           select: {
-            members: { where: { status: 'ACTIVE' } }, // Count only active members
-            boards: { where: { isPrivate: false } }, // Count only public boards
+            members: { where: { status: 'ACTIVE' } },
+            boards: { where: { isPrivate: false } },
           },
         },
       },
       orderBy: {
-        createdAt: 'desc', // Show newer organizations first, or adjust as needed
+        createdAt: 'desc',
       },
     });
 

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { useRouter } from "next/navigation" // Import useRouter
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -22,7 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { toast } from "sonner"; // Import toast from sonner
+import { toast } from "sonner";
 import {
   MessageSquare,
   Plus,
@@ -37,19 +37,16 @@ import {
   History,
   LogOut,
   Loader2,
-  LogIn, // Add LogIn icon
+  LogIn,
   Ban,
   Undo
 } from "lucide-react"
-import { OrganizationWithDetails } from "./page" // Import the type from page.tsx
-// Removed incorrect import: import { OrganizationMember } from '@prisma/client';
+import { OrganizationWithDetails } from "./page"
 
-// Define types for nested relations based on OrganizationWithDetails
 type BoardWithCounts = OrganizationWithDetails['boards'][number];
 type MemberWithUser = OrganizationWithDetails['members'][number];
 type AuditLogWithUser = OrganizationWithDetails['auditLogs'][number];
 
-// Helper function (can be moved to utils)
 const formatDate = (dateString: string | Date) => {
   const date = new Date(dateString)
   return new Intl.DateTimeFormat("en-US", {
@@ -63,12 +60,12 @@ const formatDate = (dateString: string | Date) => {
 
 interface OrganizationClientProps {
   organization: OrganizationWithDetails
-  userRole: string // 'admin', 'moderator', 'member', 'guest'
-  userId: string | null // ID of the current user, null if not logged in
+  userRole: string
+  userId: string | null
 }
 
 export default function OrganizationClient({ organization, userRole, userId }: OrganizationClientProps) {
-  const router = useRouter() // Use useRouter hook
+  const router = useRouter()
   const [isCreateBoardDialogOpen, setIsCreateBoardDialogOpen] = useState(false)
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false)
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false)
@@ -76,22 +73,20 @@ export default function OrganizationClient({ organization, userRole, userId }: O
   const [newBoardDescription, setNewBoardDescription] = useState("")
   const [newBoardImage, setNewBoardImage] = useState("/placeholder.svg?height=200&width=400")
   const [isPrivate, setIsPrivate] = useState(false)
-  const [inviteUsername, setInviteUsername] = useState("") // Changed from inviteEmail
-  const [isLoading, setIsLoading] = useState(false) // General loading state
-  const [inviteLoading, setInviteLoading] = useState(false); // Specific loading state for invites
+  const [inviteUsername, setInviteUsername] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [inviteLoading, setInviteLoading] = useState(false);
   const [isJoinLoading, setIsJoinLoading] = useState(false);
-  const [isUnbanning, setIsUnbanning] = useState<string | null>(null); // Track which user is being unbanned
-  const [isBanConfirmOpen, setIsBanConfirmOpen] = useState(false); // State for ban confirm dialog
-  const [memberToBan, setMemberToBan] = useState<MemberWithUser | null>(null); // Use the derived MemberWithUser type
-  const [banReason, setBanReason] = useState(""); // Reason for banning
+  const [isUnbanning, setIsUnbanning] = useState<string | null>(null);
+  const [isBanConfirmOpen, setIsBanConfirmOpen] = useState(false);
+  const [memberToBan, setMemberToBan] = useState<MemberWithUser | null>(null);
+  const [banReason, setBanReason] = useState("");
 
   const isAdmin = userRole === "admin"
   const isModerator = userRole === "moderator" || isAdmin
 
-  // Show settings button for admin, moderator, or creator
   const canManageSettings = userRole === 'admin' || userRole === 'moderator' || userRole === 'creator';
 
-  // Filter boards: guests only see public boards
   const visibleBoards = userRole === 'guest'
     ? organization.boards.filter(b => !b.isPrivate)
     : organization.boards;
@@ -100,7 +95,7 @@ export default function OrganizationClient({ organization, userRole, userId }: O
     if (newBoardName.trim()) {
       setIsLoading(true)
       try {
-        const response = await fetch(`/api/organization/${organization.id}/boards`, { // Placeholder API endpoint
+        const response = await fetch(`/api/organization/${organization.id}/boards`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -114,17 +109,14 @@ export default function OrganizationClient({ organization, userRole, userId }: O
         if (!response.ok) {
           throw new Error('Failed to create board');
         }
-        // Optionally, refresh data or redirect
-        router.refresh(); // Refresh server component data
+        router.refresh();
         setIsCreateBoardDialogOpen(false);
-        // Reset form
         setNewBoardName("");
         setNewBoardDescription("");
         setNewBoardImage("/placeholder.svg?height=200&width=400");
         setIsPrivate(false);
       } catch (error) {
         console.error("Error creating board:", error);
-        // TODO: Show error to user
       } finally {
         setIsLoading(false);
       }
@@ -132,69 +124,61 @@ export default function OrganizationClient({ organization, userRole, userId }: O
   }
 
   const handleInviteUser = async () => {
-    if (inviteUsername.trim()) { // Changed from inviteEmail
-      setInviteLoading(true); // Use separate loading state
+    if (inviteUsername.trim()) {
+      setInviteLoading(true);
       try {
-        // Use the new /api/invites endpoint
         const response = await fetch(`/api/invites`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          // Send organizationId along with username
           body: JSON.stringify({
-            username: inviteUsername, // Changed from email
+            username: inviteUsername,
             organizationId: organization.id
           }),
         });
 
-        const responseData = await response.json(); // Parse JSON response
+        const responseData = await response.json();
 
         if (!response.ok) {
-          // Use message from responseData if available
           throw new Error(responseData.message || 'Failed to send invite');
         }
 
-        toast.success(responseData.message || `Invitation sent to ${inviteUsername}`); // Changed from inviteEmail
-        setInviteUsername(""); // Changed from setInviteEmail
+        toast.success(responseData.message || `Invitation sent to ${inviteUsername}`);
+        setInviteUsername("");
         setIsInviteDialogOpen(false);
-        // Optionally re-fetch members if needed
-        // fetchMembers(); // Assuming a function fetchMembers exists
       } catch (error: any) {
         console.error("Error sending invite:", error);
         toast.error("Error sending invite", {
             description: error.message || "Could not send the invitation."
         });
       } finally {
-        setInviteLoading(false); // Use separate loading state
+        setInviteLoading(false);
       }
     }
   }
 
   const handleJoinOrganization = async () => {
-    if (!userId || !organization || organization.isPrivate) return; // Should not happen if button logic is correct
+    if (!userId || !organization || organization.isPrivate) return;
 
     setIsJoinLoading(true);
-    console.log("Attempting to join organization:", organization.id); // Log start
+    console.log("Attempting to join organization:", organization.id);
     try {
       const response = await fetch(`/api/organization/${organization.id}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // No body needed, user is identified by session
       });
 
-      console.log("Join API Response Status:", response.status); // Log status
+      console.log("Join API Response Status:", response.status);
 
-      // Try to clone the response to read the body safely
       const responseClone = response.clone();
       let responseData = {};
       try {
         responseData = await responseClone.json();
-        console.log("Join API Response Body:", responseData); // Log body
+        console.log("Join API Response Body:", responseData);
       } catch (jsonError) {
         console.error("Failed to parse response JSON:", jsonError);
-        // Try reading as text if JSON fails
         try {
           const responseText = await responseClone.text();
-          console.log("Join API Response Text:", responseText); // Log text body
+          console.log("Join API Response Text:", responseText);
         } catch (textError) {
           console.error("Failed to read response text:", textError);
         }
@@ -202,52 +186,47 @@ export default function OrganizationClient({ organization, userRole, userId }: O
 
 
       if (!response.ok) {
-        console.log("Response not OK. Status:", response.status); // Log !ok
-        // Check for specific ban error using the already parsed/logged responseData
+        console.log("Response not OK. Status:", response.status);
         if (response.status === 403 && (responseData as { banDetails?: { reason: string; bannedAt: string; appealInfo: string } }).banDetails) {
-          const { reason, bannedAt, appealInfo } = (responseData as { banDetails: { reason: string; bannedAt: string; appealInfo: string } }).banDetails; // Correctly access banDetails
+          const { reason, bannedAt, appealInfo } = (responseData as { banDetails: { reason: string; bannedAt: string; appealInfo: string } }).banDetails;
           const formattedDate = bannedAt !== "N/A" ? new Date(bannedAt).toLocaleDateString() : "N/A";
           toast.error("Cannot Join: Banned", {
             description: `Reason: ${reason}\nBanned On: ${formattedDate}\n${appealInfo}`,
-            duration: 10000, // Show longer for more info
+            duration: 10000,
           });
         } else {
-          throw new Error((responseData as { message?: string }).message || "Failed to join organization."); // Ensure message exists
+          throw new Error((responseData as { message?: string }).message || "Failed to join organization.");
         }
-        return; // Don't proceed further if response was not ok
+        return;
       }
 
-      // Successfully joined
-      console.log("Successfully joined organization."); // Log success
+      console.log("Successfully joined organization.");
       toast.success(`Successfully joined ${organization.name}!`);
-      // Refresh the page or update state to reflect new membership status
-      router.refresh(); // Simple way to reload server component data
+      router.refresh();
 
     } catch (error: any) {
-      // Catch errors from fetch itself or the generic error thrown above
-      console.error("Error in handleJoinOrganization catch block:", error); // Log caught error
-      // Avoid showing the specific ban toast again if it was already handled
+      console.error("Error in handleJoinOrganization catch block:", error);
       if (!(error.message?.includes('Cannot Join: Banned'))) {
-         console.log("Showing generic error toast for caught error."); // Log generic toast
+         console.log("Showing generic error toast for caught error.");
          toast.error("Error", {
             description: error.message || "Could not join the organization."
          });
       } else {
-         console.log("Caught error message includes 'Cannot Join: Banned', suppressing generic toast."); // Log suppression
+         console.log("Caught error message includes 'Cannot Join: Banned', suppressing generic toast.");
       }
     } finally {
-      console.log("Finishing join attempt."); // Log finally
+      console.log("Finishing join attempt.");
       setIsJoinLoading(false);
     }
   };
 
   const handleUnbanUser = async (userIdToUnban: string) => {
-    if (!isAdmin) return; // Extra safety check
+    if (!isAdmin) return;
     
     const userToUnban = organization.members.find(m => m.userId === userIdToUnban);
     if (!userToUnban) return;
 
-    setIsUnbanning(userIdToUnban); // Set loading state for this specific user
+    setIsUnbanning(userIdToUnban);
     console.log(`Attempting to unban user: ${userIdToUnban} in org: ${organization.id}`);
 
     try {
@@ -255,14 +234,13 @@ export default function OrganizationClient({ organization, userRole, userId }: O
         method: 'DELETE',
       });
 
-      const responseData = await response.json(); // Attempt to parse JSON regardless of status
+      const responseData = await response.json();
       console.log(`Unban API Response Status: ${response.status}`, responseData);
 
       if (!response.ok) {
         throw new Error(responseData.message || `Failed to unban user. Status: ${response.status}`);
       }
       
-      // Create audit log for unban action
       await fetch('/api/audit-log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -281,7 +259,7 @@ export default function OrganizationClient({ organization, userRole, userId }: O
       });
 
       toast.success(responseData.message || "User successfully unbanned.");
-      router.refresh(); // Refresh the page to show the updated member list/status
+      router.refresh();
 
     } catch (error: any) {
       console.error("Error unbanning user:", error);
@@ -289,13 +267,12 @@ export default function OrganizationClient({ organization, userRole, userId }: O
         description: error.message || "Could not unban the user."
       });
     } finally {
-      setIsUnbanning(null); // Clear loading state
+      setIsUnbanning(null);
   }
 };
 
-// Function to handle banning a user from the organization
   const handleBanUser = async (userId: string, reason: string) => {
-    if (!isAdmin) return; // Safety check
+    if (!isAdmin) return;
     
     const userToBan = organization.members.find(m => m.userId === userId);
     if (!userToBan) return;
@@ -316,7 +293,6 @@ export default function OrganizationClient({ organization, userRole, userId }: O
         throw new Error(responseData.message || `Failed to ban user. Status: ${response.status}`);
       }
       
-      // Create audit log for ban action
       await fetch('/api/audit-log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -336,10 +312,10 @@ export default function OrganizationClient({ organization, userRole, userId }: O
       });
 
       toast.success(responseData.message || "User successfully banned.");
-      setIsBanConfirmOpen(false); // Close the confirm dialog
-      setMemberToBan(null); // Reset selected member
-      setBanReason(""); // Clear reason field
-      router.refresh(); // Refresh the page to show the updated member list/status
+      setIsBanConfirmOpen(false);
+      setMemberToBan(null);
+      setBanReason("");
+      router.refresh();
 
     } catch (error: any) {
       console.error("Error banning user:", error);
@@ -352,19 +328,17 @@ export default function OrganizationClient({ organization, userRole, userId }: O
   const handleLeaveOrganization = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/organization/${organization.id}/members/${userId}`, { // Placeholder API endpoint
+      const response = await fetch(`/api/organization/${organization.id}/members/${userId}`, {
         method: 'DELETE',
       });
       if (!response.ok) {
         throw new Error('Failed to leave organization');
       }
-      router.push("/dashboard"); // Redirect after leaving
+      router.push("/dashboard");
     } catch (error) {
       console.error("Error leaving organization:", error);
-      // TODO: Show error to user
-      setIsLoading(false); // Only stop loading if there's an error
+      setIsLoading(false);
     }
-    // No finally block needed if redirecting on success
   }
 
   return (
@@ -374,7 +348,7 @@ export default function OrganizationClient({ organization, userRole, userId }: O
         <div className="flex items-center gap-4">
           <div className="relative h-16 w-16 rounded-lg overflow-hidden">
             <Image
-              src={organization.imageUrl || "/placeholder.svg"} // Corrected: Use imageUrl
+              src={organization.imageUrl || "/placeholder.svg"}
               alt={organization.name}
               fill
               className="object-cover"
@@ -422,12 +396,12 @@ export default function OrganizationClient({ organization, userRole, userId }: O
                     <Label htmlFor="invite-username">Username</Label> {/* Changed label */}
                     <div className="flex gap-2">
                       <Input
-                        id="invite-username" // Changed id
-                        placeholder="username" // Changed placeholder
-                        type="text" // Changed type
-                        value={inviteUsername} // Changed value
-                        onChange={(e) => setInviteUsername(e.target.value)} // Changed handler
-                        disabled={inviteLoading} // Use inviteLoading state
+                        id="invite-username"
+                        placeholder="username"
+                        type="text"
+                        value={inviteUsername}
+                        onChange={(e) => setInviteUsername(e.target.value)}
+                        disabled={inviteLoading}
                       />
                       {/* Use inviteLoading state for button */}
                       <Button onClick={handleInviteUser} disabled={inviteLoading || !inviteUsername.trim()}>
@@ -568,7 +542,7 @@ export default function OrganizationClient({ organization, userRole, userId }: O
           <MessageSquare className="h-5 w-5 text-gray-500" />
           <span className="text-sm text-gray-500 dark:text-gray-400">{organization._count.boards} boards</span>
         </div>
-        {isModerator && ( // Show audit log link only to moderators/admins
+        {isModerator && (
           <div className="ml-auto">
             <Link href={`/organization/${organization.id}/audit-log`}>
               <Button variant="outline" size="sm" className="gap-1">
@@ -665,7 +639,6 @@ export default function OrganizationClient({ organization, userRole, userId }: O
                   <CardDescription>Manage members and their roles within the organization.</CardDescription>
                 </div>
                 {isModerator && (
-                  // Use inviteLoading state for button
                   <Button variant="outline" onClick={() => setIsInviteDialogOpen(true)} disabled={inviteLoading}>
                     <UserPlus className="mr-2 h-4 w-4" />
                     Invite Members
@@ -706,7 +679,7 @@ export default function OrganizationClient({ organization, userRole, userId }: O
                           variant="outline"
                           size="sm"
                           onClick={() => handleUnbanUser(member.userId)}
-                          disabled={isUnbanning === member.userId} // Disable only the button being clicked
+                          disabled={isUnbanning === member.userId}
                         >
                           {isUnbanning === member.userId ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />

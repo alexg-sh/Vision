@@ -7,8 +7,8 @@ export async function GET(req: Request) {
       where: {
         isPrivate: false,
         OR: [
-          { organization: { isPrivate: false } }, // public org boards
-          { organizationId: null }               // public personal boards
+          { organization: { isPrivate: false } },
+          { organizationId: null }
         ],
       },
       select: {
@@ -16,7 +16,7 @@ export async function GET(req: Request) {
         name: true,
         description: true,
         createdAt: true,
-        organization: { // Include basic organization info
+        organization: {
           select: {
             id: true,
             name: true,
@@ -24,17 +24,10 @@ export async function GET(req: Request) {
             imageUrl: true,
           }
         },
-        // Add counts if needed, e.g., post count
-        // _count: {
-        //   select: { posts: true }
-        // }
       },
       orderBy: {
-        createdAt: 'desc', // Show newer boards first, or adjust as needed
+        createdAt: 'desc',
       },
-      // Add pagination if needed
-      // take: 20,
-      // skip: 0,
     });
 
     return NextResponse.json(boards, { status: 200 });

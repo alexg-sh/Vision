@@ -2,7 +2,7 @@ import { NextResponse, NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { prisma } from '@/lib/prisma'
-import { Post, User, PostVote } from '@prisma/client'
+import { Post, User, PostVote, PollVote } from '@prisma/client'
 
 type PostWithDetails = Post & {
   author: Pick<User, 'id' | 'name' | 'image'>;
@@ -11,10 +11,11 @@ type PostWithDetails = Post & {
     comments: number;
   };
   postVotes?: PostVote[];
-  // Add optional GitHub fields from the base Post model
+  pollVotes?: any[];
   githubIssueNumber?: number | null;
   githubIssueUrl?: string | null;
   githubIssueStatus?: string | null;
+  pollOptions?: { id: number; text: string; votes: number }[];
 };
 
 interface RouteContext {
@@ -50,14 +51,22 @@ export async function GET(req: NextRequest, { params: paramsPromise }: RouteCont
           }
         },
         postVotes: userId ? {
-          where: { userId: userId }
-        } : false,
+          where: { userId: userId },
+          select: { voteType: true }
+        } : undefined,
+        // pollVotes is not included as it is not a valid property
       }
     });
 
-    const formattedPosts = posts.map((post: PostWithDetails) => {
+    const formattedPosts = (posts as any[]).map((post) => {
       const userVoteRecord = post.postVotes;
       const userVote = userVoteRecord && userVoteRecord.length > 0 ? userVoteRecord[0].voteType : null;
+
+      const userPollVoteRecord = post.pollVotes;
+      const userPollVote = userPollVoteRecord && userPollVoteRecord.length > 0 ? userPollVoteRecord[0].optionId : null;
+
+      const commentCount = post._count?.comments ?? 0;
+      const voteCount = post._count?.postVotes ?? 0;
 
       return {
         id: post.id,
@@ -68,16 +77,17 @@ export async function GET(req: NextRequest, { params: paramsPromise }: RouteCont
         authorId: post.authorId,
         author: post.author,
         votes: post.votes,
-        commentCount: post._count.comments,
-        voteCount: post._count.postVotes,
+        commentCount: commentCount,
+        voteCount: voteCount,
         userVote: userVote,
-        // GitHub issue link data
+        userPollVote: userPollVote,
         githubIssue: post.githubIssueNumber != null ? {
           linked: true,
           number: post.githubIssueNumber,
           url: post.githubIssueUrl || '',
           status: post.githubIssueStatus || ''
         } : null,
+        pollOptions: post.pollOptions ?? [],
       };
     });
 
@@ -95,13 +105,16 @@ export async function POST(req: Request, { params: paramsPromise }: RouteContext
   const params = await paramsPromise
   const boardId = params.id
   try {
-    const { title, content, tags } = await req.json()
+    const { title, content, tags, pollOptions } = await req.json()
     if (!title || typeof title !== 'string') {
       return NextResponse.json({ message: 'Title is required' }, { status: 400 })
     }
-    const newPost = await prisma.post.create({
-      data: { title: title.trim(), content: content || null, boardId, authorId: userId, tags: tags ?? [] }
-    })
+    // build post data, including optional pollOptions JSON
+    const postData: any = { title: title.trim(), content: content || null, boardId, authorId: userId, tags: tags ?? [] }
+    if (Array.isArray(pollOptions)) {
+      postData.pollOptions = pollOptions.map((text: string, idx: number) => ({ id: idx, text, votes: 0 }))
+    }
+    const newPost = await prisma.post.create({ data: postData })
 
     const postWithDetails = await prisma.post.findUnique({
       where: { id: newPost.id },
@@ -113,10 +126,12 @@ export async function POST(req: Request, { params: paramsPromise }: RouteContext
 
     const formattedNewPost = {
       ...postWithDetails,
-      votes: postWithDetails?._count.postVotes ?? 0,
+      votes: postWithDetails?.votes ?? 0,
       comments: postWithDetails?._count.comments ?? 0,
       userVote: null,
-      tags: postWithDetails?.tags ?? []
+      tags: postWithDetails?.tags ?? [],
+      pollOptions: postWithDetails?.pollOptions ?? null,
+      userPollVote: null,
     };
 
     return NextResponse.json(formattedNewPost, { status: 201 })

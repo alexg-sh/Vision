@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -8,92 +8,70 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Clock, Filter, Search } from "lucide-react"
-import DashboardHeader from "@/components/dashboard-header"
 
-export default function OrganizationAuditLogPage({ params }: { params: { id: string } }) {
+interface AuditLogEntry {
+  id: number | string
+  action: string
+  user: string
+  userRole: string
+  timestamp: string
+  details: string
+  boardId: number | string | null
+  boardName: string | null
+}
+
+interface Organization {
+  id: number | string
+  name: string
+}
+
+export default function OrganizationAuditLogPage({ params: paramsProp }: { params: { id: string } }) {
+  const params = paramsProp // Correctly unwrap params
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [filterAction, setFilterAction] = useState("")
+  const [organization, setOrganization] = useState<Organization | null>(null)
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Mock organization data
-  const organization = {
-    id: Number.parseInt(params.id),
-    name: "Acme Corp",
-  }
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        // TODO: Replace with actual API calls
+        // Fetch organization details
+        // const orgResponse = await fetch(`/api/organization/${params.id}`);
+        // if (!orgResponse.ok) throw new Error('Failed to fetch organization details');
+        // const orgData: Organization = await orgResponse.json();
+        // setOrganization(orgData);
 
-  // Mock audit logs
-  const auditLogs = [
-    {
-      id: 1,
-      action: "created board",
-      user: "John Doe",
-      userRole: "admin",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(), // 2 days ago
-      details: "Board 'Feature Requests' was created",
-      boardId: 1,
-      boardName: "Feature Requests",
-    },
-    {
-      id: 2,
-      action: "invited user",
-      user: "John Doe",
-      userRole: "admin",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
-      details: "Invited 'Jane Smith' to the organization",
-      boardId: null,
-      boardName: null,
-    },
-    {
-      id: 3,
-      action: "changed role",
-      user: "John Doe",
-      userRole: "admin",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(), // 12 hours ago
-      details: "Changed 'Jane Smith' role to 'moderator' in board 'Feature Requests'",
-      boardId: 1,
-      boardName: "Feature Requests",
-    },
-    {
-      id: 4,
-      action: "banned user",
-      user: "Jane Smith",
-      userRole: "moderator",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(), // 6 hours ago
-      details: "Banned 'Alex Johnson' from board 'Bug Reports'",
-      boardId: 2,
-      boardName: "Bug Reports",
-    },
-    {
-      id: 5,
-      action: "deleted post",
-      user: "Jane Smith",
-      userRole: "moderator",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
-      details: "Deleted post 'Inappropriate content' from board 'Feature Requests'",
-      boardId: 1,
-      boardName: "Feature Requests",
-    },
-    {
-      id: 6,
-      action: "created board",
-      user: "Mike Wilson",
-      userRole: "admin",
-      timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 minutes ago
-      details: "Board 'Design Feedback' was created",
-      boardId: 3,
-      boardName: "Design Feedback",
-    },
-    {
-      id: 7,
-      action: "updated settings",
-      user: "John Doe",
-      userRole: "admin",
-      timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(), // 15 minutes ago
-      details: "Updated organization settings",
-      boardId: null,
-      boardName: null,
-    },
-  ]
+        // Simulate fetching organization data
+        setOrganization({ id: params.id, name: "Organization Name" }) // Placeholder name
+
+        // Fetch audit logs
+        // const logResponse = await fetch(`/api/organization/${params.id}/audit-log`);
+        // if (!logResponse.ok) throw new Error('Failed to fetch audit logs');
+        // const logData: AuditLogEntry[] = await logResponse.json();
+        // setAuditLogs(logData);
+
+        // Simulate fetching logs (remove this when using real API)
+        setAuditLogs([]) // Start with empty logs
+      } catch (err) {
+        console.error("Error fetching data:", err)
+        setError(err instanceof Error ? err.message : "An unknown error occurred")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    // Use the unwrapped params.id here
+    if (params.id) {
+      fetchData()
+    }
+    // And here in the dependency array
+  }, [params.id])
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -106,7 +84,6 @@ export default function OrganizationAuditLogPage({ params }: { params: { id: str
     }).format(date)
   }
 
-  // Filter logs based on search query and action filter
   const filteredLogs = auditLogs.filter((log) => {
     const matchesSearch =
       searchQuery === "" ||
@@ -119,12 +96,22 @@ export default function OrganizationAuditLogPage({ params }: { params: { id: str
     return matchesSearch && matchesAction
   })
 
-  // Get unique actions for filter
   const uniqueActions = Array.from(new Set(auditLogs.map((log) => log.action)))
+
+  if (isLoading) {
+    return <div>Loading...</div>
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>
+  }
+
+  if (!organization) {
+    return <div>Organization not found.</div>
+  }
 
   return (
     <div className="flex min-h-screen flex-col">
-      <DashboardHeader />
       <main className="flex-1 container py-6">
         <div className="flex items-center gap-2 mb-6">
           <Button variant="ghost" size="icon" onClick={() => router.push(`/organization/${params.id}`)}>

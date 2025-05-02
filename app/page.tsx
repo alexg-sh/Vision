@@ -1,12 +1,12 @@
-"use client" // Add this directive
+"use client"
 
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, MessageSquare, ThumbsUp, Users, LogIn, UserPlus, LayoutDashboard } from "lucide-react" // Import necessary icons
-import { useSession } from "next-auth/react" // Import useSession
+import { ArrowRight, MessageSquare, ThumbsUp, Users, LogIn, UserPlus, LayoutDashboard } from "lucide-react"
+import { useSession } from "next-auth/react"
 
 export default function Home() {
-  const { data: session, status } = useSession() // Get session status
+  const { data: session, status } = useSession()
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -26,7 +26,7 @@ export default function Home() {
           </nav>
           <div className="flex gap-4 items-center">
             {status === "loading" && (
-              <div className="h-8 w-20 animate-pulse bg-muted rounded-md"></div> // Simple loading placeholder
+              <div className="h-8 w-20 animate-pulse bg-muted rounded-md"></div>
             )}
             {status === "unauthenticated" && (
               <>

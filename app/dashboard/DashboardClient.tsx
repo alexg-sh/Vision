@@ -30,7 +30,6 @@ import { Badge } from "@/components/ui/badge"
 import { Plus, Loader2, MessageSquare, Globe, Lock } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 
-// Define BoardWithCounts locally as the module '@types' could not be resolved
 type BoardWithCounts = {
   id: string;
   name: string;

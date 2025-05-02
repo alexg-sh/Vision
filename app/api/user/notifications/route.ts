@@ -3,9 +3,8 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 
-// Define the expected shape of the request body
 interface UpdateNotificationSettingsRequest {
-  userId: string; // Ensure userId is passed or derive from session
+  userId: string;
   settings: {
     emailNotifications?: boolean;
     mentionNotifications?: boolean;
@@ -14,11 +13,9 @@ interface UpdateNotificationSettingsRequest {
     commentNotifications?: boolean;
     statusChangeNotifications?: boolean;
     digestEmail?: 'daily' | 'weekly' | 'never';
-    // Add any other settings fields here
   };
 }
 
-// PUT handler to update notification settings
 export async function PUT(request: Request) {
   const session = await getServerSession(authOptions);
 
@@ -31,7 +28,6 @@ export async function PUT(request: Request) {
   try {
     const body: UpdateNotificationSettingsRequest = await request.json();
 
-    // Optional: Validate if body.userId matches session.user.id if provided in body
     if (body.userId && body.userId !== userId) {
        console.warn(`PUT /api/user/notifications: Mismatch between session user (${userId}) and body userId (${body.userId})`);
        return NextResponse.json({ message: 'Forbidden: User ID mismatch' }, { status: 403 });
@@ -39,17 +35,13 @@ export async function PUT(request: Request) {
 
     const { settings } = body;
 
-    // Validate settings if necessary (e.g., check digestEmail value)
     if (settings.digestEmail && !['daily', 'weekly', 'never'].includes(settings.digestEmail)) {
         return NextResponse.json({ message: 'Invalid digestEmail value' }, { status: 400 });
     }
 
-    // Find or create UserPreferences record
-    // Using upsert ensures a record exists whether it's the first time or not
     const updatedPreferences = await prisma.userPreference.upsert({
       where: { userId: userId },
       update: {
-        // Only update fields that are present in the request body.settings
         ...(settings.emailNotifications !== undefined && { emailNotifications: settings.emailNotifications }),
         ...(settings.mentionNotifications !== undefined && { mentionNotifications: settings.mentionNotifications }),
         ...(settings.replyNotifications !== undefined && { replyNotifications: settings.replyNotifications }),
@@ -60,7 +52,7 @@ export async function PUT(request: Request) {
       },
       create: {
         userId: userId,
-        emailNotifications: settings.emailNotifications ?? true, // Default values on creation
+        emailNotifications: settings.emailNotifications ?? true,
         mentionNotifications: settings.mentionNotifications ?? true,
         replyNotifications: settings.replyNotifications ?? true,
         voteNotifications: settings.voteNotifications ?? false,
@@ -82,7 +74,6 @@ export async function PUT(request: Request) {
   }
 }
 
-// Optional: GET handler to fetch current settings
 export async function GET(request: Request) {
     const session = await getServerSession(authOptions);
 
@@ -98,7 +89,6 @@ export async function GET(request: Request) {
         });
 
         if (!preferences) {
-            // Return default preferences if none exist yet
             return NextResponse.json({
                 userId: userId,
                 emailNotifications: true,

@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 
-// PATCH: Mark a specific notification as read
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
@@ -28,14 +27,13 @@ export async function PATCH(
     const updatedNotification = await prisma.notification.updateMany({
       where: {
         id: notificationId,
-        userId: userId, // Ensure the notification belongs to the user
+        userId: userId,
       },
       data: {
         read: true,
       },
     });
 
-    // Check if any notification was actually updated
     if (updatedNotification.count === 0) {
         return NextResponse.json({ message: "Notification not found or already marked as read" }, { status: 404 });
     }
@@ -50,7 +48,6 @@ export async function PATCH(
   }
 }
 
-// DELETE: Delete a specific notification
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
@@ -75,18 +72,17 @@ export async function DELETE(
     const deleteResult = await prisma.notification.deleteMany({
       where: {
         id: notificationId,
-        userId: userId, // Ensure the notification belongs to the user
+        userId: userId,
       },
     });
 
-    // Check if any notification was actually deleted
     if (deleteResult.count === 0) {
         return NextResponse.json({ message: "Notification not found" }, { status: 404 });
     }
 
     return NextResponse.json(
       { message: "Notification deleted" },
-      { status: 200 } // Or 204 No Content
+      { status: 200 }
     );
   } catch (error) {
     console.error("Error deleting notification:", error);

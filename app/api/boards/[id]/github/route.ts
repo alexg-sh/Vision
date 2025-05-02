@@ -5,7 +5,6 @@ import { prisma } from '@/lib/prisma'
 
 interface RouteContext { params: Promise<{ id: string }> }
 
-// PATCH: link a GitHub repository to the board
 export async function PATCH(req: Request, { params }: RouteContext) {
   const { id: boardId } = await params
   const session = await getServerSession(authOptions)
@@ -29,7 +28,6 @@ export async function PATCH(req: Request, { params }: RouteContext) {
   }
 }
 
-// DELETE: disconnect GitHub integration
 export async function DELETE(_req: Request, { params }: RouteContext) {
   const { id: boardId } = await params
   const session = await getServerSession(authOptions)

@@ -17,14 +17,14 @@ export default function SignupPage() {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [username, setUsername] = useState("") // Add username state
+  const [username, setUsername] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null) // Add error state
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    setError(null) // Clear previous errors
+    setError(null)
 
     try {
       const response = await fetch('/api/auth/signup', {
@@ -32,7 +32,6 @@ export default function SignupPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        // Include username in the body
         body: JSON.stringify({ name, email, password, username }),
       })
 
@@ -41,8 +40,7 @@ export default function SignupPage() {
         throw new Error(errorData.message || 'Failed to create account')
       }
 
-      // Signup successful, redirect to login page
-      router.push('/login?signup=success') // Optionally add a query param
+      router.push('/login?signup=success')
 
     } catch (err: any) {
       console.error("Signup error:", err)
@@ -85,9 +83,6 @@ export default function SignupPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                // Optional: Add pattern for validation if desired
-                // pattern="^[a-zA-Z0-9_]{3,20}$"
-                // title="Username must be 3-20 alphanumeric characters or underscores."
               />
             </div>
             <div className="space-y-2">

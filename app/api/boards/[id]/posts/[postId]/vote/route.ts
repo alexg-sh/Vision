@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import { prisma } from '@/lib/prisma'
-import { Prisma } from '@prisma/client' // Import Prisma namespace for TransactionClient type
+import { Prisma } from '@prisma/client'
 
 export async function POST(_req: Request, { params: paramsPromise }: { params: Promise<{ id: string; postId: string }> }) {
   const { id: boardId, postId } = await paramsPromise
@@ -13,7 +13,6 @@ export async function POST(_req: Request, { params: paramsPromise }: { params: P
   if (![1, -1].includes(voteType)) return NextResponse.json({ message: 'Invalid voteType' }, { status: 400 })
 
   return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    // Manage vote create, update or delete
     const existing = await tx.postVote.findUnique({ where: { userId_postId: { userId, postId } } })
     let newType: number;
     if (existing) {
@@ -28,10 +27,8 @@ export async function POST(_req: Request, { params: paramsPromise }: { params: P
       await tx.postVote.create({ data: { userId, postId, voteType } })
       newType = voteType
     }
-    // Recalculate net votes from database
     const agg = await tx.postVote.aggregate({ where: { postId }, _sum: { voteType: true } })
     const votes = agg._sum.voteType ?? 0
-    // Update post votes to reflect accurate total
     const updated = await tx.post.update({ where: { id: postId }, data: { votes }, select: { votes: true } })
     return NextResponse.json({ votes: updated.votes, userVote: newType })
   })

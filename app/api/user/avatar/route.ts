@@ -3,14 +3,9 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 
-// Placeholder for actual file upload logic (e.g., to S3, Cloudinary)
 async function uploadAvatarToServer(file: File): Promise<string> {
   console.log(`Simulating upload for file: ${file.name}`);
-  // In a real implementation:
-  // 1. Upload the file to your storage provider.
-  // 2. Get the public URL of the uploaded file.
-  // For now, return a placeholder URL based on the filename (NOT secure/unique)
-  await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
+  await new Promise(resolve => setTimeout(resolve, 500));
   return `/uploads/avatars/placeholder-${Date.now()}-${file.name.replace(/\s+/g, '-')}`;
 }
 
@@ -29,21 +24,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'No avatar file provided' }, { status: 400 });
     }
 
-    // Basic validation (add more as needed: size, type)
     if (!file.type.startsWith('image/')) {
         return NextResponse.json({ message: 'Invalid file type, please upload an image.' }, { status: 400 });
     }
 
-    // --- Upload Logic --- 
-    // Replace this placeholder with your actual upload implementation
     const newAvatarUrl = await uploadAvatarToServer(file);
-    // --- End Upload Logic ---
 
-    // Update user record in the database
     const updatedUser = await prisma.user.update({
       where: { id: session.user.id },
-      data: { image: newAvatarUrl }, // Assuming 'image' field stores the avatar URL
-      select: { image: true } // Only select the updated image URL
+      data: { image: newAvatarUrl },
+      select: { image: true }
     });
 
     return NextResponse.json({ message: 'Avatar updated successfully', avatarUrl: updatedUser.image }, { status: 200 });

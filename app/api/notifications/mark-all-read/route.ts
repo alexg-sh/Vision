@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     await prisma.notification.updateMany({
       where: {
         userId: userId,
-        read: false, // Only update unread notifications
+        read: false,
       },
       data: {
         read: true,
@@ -40,11 +40,10 @@ export async function PATCH(request: Request) {
   const userId = session.user.id;
 
   try {
-    // Update all unread notifications for the user to read
     const updateResult = await prisma.notification.updateMany({
       where: {
         userId: userId,
-        read: false, // Only target unread notifications
+        read: false,
       },
       data: {
         read: true,

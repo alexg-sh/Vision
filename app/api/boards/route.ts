@@ -16,12 +16,10 @@ export async function POST(req: Request) {
   try {
     const { name, description, image, isPrivate } = await req.json();
 
-    // Basic validation
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return NextResponse.json({ message: 'Board name is required' }, { status: 400 });
     }
 
-    // Create board and record audit log in one transaction
     const newBoard = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const board = await tx.board.create({
         data: {
@@ -30,10 +28,9 @@ export async function POST(req: Request) {
           image: image || null,
           isPrivate: isPrivate || false,
           createdById: userId,
-          organizationId: null, // null for personal boards
+          organizationId: null,
         },
       });
-      // Only log if linked to an organization
       if (board.organizationId) {
         await tx.auditLog.create({
           data: {
@@ -53,11 +50,9 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error("Error creating personal board:", error);
-    // Distinguish between JSON parsing errors and other errors
     if (error instanceof SyntaxError) {
       return NextResponse.json({ message: 'Invalid JSON payload' }, { status: 400 });
     }
-    // Handle foreign key constraint violation where createdById doesn't exist
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
       return NextResponse.json({ message: 'Invalid session user. Please log in again.' }, { status: 401 });
     }

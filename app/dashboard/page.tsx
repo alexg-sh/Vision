@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import DashboardClient from "./DashboardClient";
 
-// --- Update Type for BoardWithCounts ---
 export type BoardWithCounts = {
   id: string;
   name: string;
@@ -29,14 +28,12 @@ export default async function DashboardPage() {
 
   const userId = session.user.id;
 
-  // 1. Owned personal boards
   const personalBoards: BoardWithCounts[] = await prisma.board.findMany({
     where: { createdById: userId, organizationId: null },
     include: { _count: { select: { posts: true } } },
     orderBy: { createdAt: 'desc' },
   });
 
-  // 2. Boards where user is member (excluding owned to avoid duplicates)
   const memberBoards: BoardWithCounts[] = await prisma.board.findMany({
     where: { 
       members: { some: { userId } },
@@ -46,7 +43,6 @@ export default async function DashboardPage() {
     orderBy: { createdAt: 'desc' },
   });
 
-  // 3. Organizations where user is a member
   const myOrgs = await prisma.organization.findMany({
     where: { members: { some: { userId } } },
     select: { id: true, name: true, slug: true, imageUrl: true }

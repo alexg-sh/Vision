@@ -21,14 +21,11 @@ export async function GET(_req: Request, { params }: RouteContext) {
         'User-Agent': 'Project Vision',
         Accept: 'application/vnd.github.v3+json'
       },
-      // Avoid following HTML redirects to login page
       redirect: 'manual'
     })
-    // Detect unexpected redirects (e.g. expired token leading to login page)
     if (res.status >= 300 && res.status < 400) {
       throw new Error('Invalid or expired GitHub token; please re-authorize.');
     }
-    // Ensure response is JSON
     const contentType = res.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
       throw new Error('Unexpected response from GitHub API: not JSON');

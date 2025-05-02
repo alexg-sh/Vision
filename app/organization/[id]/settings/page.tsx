@@ -57,7 +57,6 @@ import {
 } from "@/components/ui/dialog"
 import { use } from 'react';
 
-// Define types based on Prisma schema and API responses
 interface User {
   id: string;
   name: string | null;
@@ -69,9 +68,9 @@ interface OrganizationMember {
   id: string;
   userId: string;
   organizationId: string;
-  role: string; // ADMIN, MEMBER
-  status: string; // ACTIVE, BANNED
-  bannedAt: string | null; // ISO date string
+  role: string;
+  status: string;
+  bannedAt: string | null;
   banReason: string | null;
   user: User;
 }
@@ -83,7 +82,7 @@ interface OrganizationDetails {
   imageUrl: string | null;
   isPrivate: boolean;
   slug: string;
-  userRole: string | null; // Role of the current user in this org
+  userRole: string | null;
   _count: {
     members: number;
     boards: number;
@@ -109,7 +108,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
   const [isListLoading, setIsListLoading] = useState(false);
   const [error, setError] = useState<string | null>(null)
 
-  // State for dialogs
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false)
   const [inviteUsername, setInviteUsername] = useState("");
@@ -118,13 +116,11 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
   const [isBanConfirmOpen, setIsBanConfirmOpen] = useState(false);
   const [isUnbanning, setIsUnbanning] = useState<string | null>(null);
 
-  // Form state for editing org details
   const [editedName, setEditedName] = useState("")
   const [editedDescription, setEditedDescription] = useState("")
   const [editedImageUrl, setEditedImageUrl] = useState("")
   const [editedIsPrivate, setEditedIsPrivate] = useState(false)
 
-  // --- Consolidated Fetching Functions ---
 
   const fetchOrganizationDetails = async () => {
     if (!organizationId) return false;
@@ -138,7 +134,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
       }
       const data: OrganizationDetails = await response.json();
       setOrganization(data);
-      // Initialize edit form state
       setEditedName(data.name);
       setEditedDescription(data.description || "");
       setEditedImageUrl(data.imageUrl || "");
@@ -190,7 +185,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
     }
   };
 
-  // --- useEffect Hooks ---
 
   useEffect(() => {
     fetchOrganizationDetails();
@@ -203,7 +197,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
     }
   }, [organization]);
 
-  // Derived state for current user
   const currentUserMemberInfo = members.find(m => m.userId === session?.user?.id);
   const currentUserRole = organization?.userRole;
   const isAdmin = currentUserRole === 'ADMIN';
@@ -211,7 +204,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
   const isCreator = currentUserRole === 'CREATOR';
   const canAccessSettings = isAdmin || isModerator || isCreator;
 
-  // --- Handler Functions ---
 
   const handleSaveSettings = async () => {
     if (!organization) return;
@@ -421,7 +413,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
     }).format(date);
   };
 
-  // Render loading state
   if (isFetching || sessionStatus === 'loading') {
     return (
       <div className="flex min-h-screen flex-col">
@@ -432,7 +423,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
     );
   }
 
-  // Render error state or if organization not found
   if (error || !organization) {
     return (
       <div className="flex min-h-screen flex-col">
@@ -451,7 +441,6 @@ export default function OrganizationSettingsPage({ params }: { params: Promise<{
     );
   }
 
-  // Render settings page only if user is an admin, moderator, or creator
   if (!canAccessSettings) {
      return (
       <div className="flex min-h-screen flex-col">

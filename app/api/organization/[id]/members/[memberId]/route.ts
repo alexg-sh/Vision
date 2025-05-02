@@ -2,9 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { Prisma } from "@prisma/client"; // Import Prisma namespace for error types
+import { Prisma } from "@prisma/client";
 
-// Helper function to check user's role in the organization
 async function getUserRole(userId: string, organizationId: string): Promise<string | null> {
   const member = await prisma.organizationMember.findUnique({
     where: {
@@ -18,11 +17,10 @@ async function getUserRole(userId: string, organizationId: string): Promise<stri
   return member?.role || null;
 }
 
-// PATCH handler to update member role or status (ban/unban)
 export async function PATCH(req: Request, { params }: { params: { id: string; memberId: string } }) {
   const session = await getServerSession(authOptions);
   const organizationId = params.id;
-  const targetUserId = params.memberId; // The ID of the user whose membership is being modified
+  const targetUserId = params.memberId;
 
   if (!session?.user?.id) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -30,13 +28,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string; me
 
   const requestingUserId = session.user.id;
 
-  // Check if the requesting user is an admin
   const requestingUserRole = await getUserRole(requestingUserId, organizationId);
   if (requestingUserRole !== 'ADMIN') {
     return NextResponse.json({ message: "Forbidden: Only admins can modify member roles or status." }, { status: 403 });
   }
 
-  // Prevent admin from modifying their own role/status via this endpoint
   if (requestingUserId === targetUserId) {
     return NextResponse.json({ message: "Forbidden: Admins cannot modify their own role or status here." }, { status: 403 });
   }
@@ -45,9 +41,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string; me
     const body = await req.json();
     const { role, status, banReason } = body;
 
-    // --- Handle Role Change ---
     if (role && ['ADMIN', 'MEMBER'].includes(role)) {
-      // Check if trying to remove the last admin by changing their role
       const targetMember = await prisma.organizationMember.findUnique({
         where: { userId_organizationId: { userId: targetUserId, organizationId: organizationId } },
         select: { role: true },
@@ -68,20 +62,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string; me
         data: { role: role },
         include: { user: { select: { id: true, name: true, email: true, image: true } } },
       });
-      // TODO: Add audit log for role change
       return NextResponse.json(updatedMember, { status: 200 });
     }
 
-    // --- Handle Ban/Unban ---
     if (status && ['ACTIVE', 'BANNED'].includes(status)) {
       if (status === 'BANNED') {
-        // BANNING: Upsert Ban Record + Delete Member Record
         const targetMember = await prisma.organizationMember.findUnique({
           where: { userId_organizationId: { userId: targetUserId, organizationId: organizationId } },
           select: { role: true },
         });
 
-        // Prevent banning the last admin
         if (targetMember?.role === 'ADMIN') {
             const adminCount = await prisma.organizationMember.count({
               where: { organizationId: organizationId, role: 'ADMIN' },
@@ -93,7 +83,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string; me
 
         try {
           await prisma.$transaction([
-            // 1. Upsert the ban record
             prisma.organizationBan.upsert({
               where: {
                 userId_organizationId: { userId: targetUserId, organizationId: organizationId },
@@ -111,7 +100,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string; me
                 bannedAt: new Date(),
               },
             }),
-            // 2. Delete the membership record (kick)
             prisma.organizationMember.deleteMany({
               where: {
                 userId: targetUserId,
@@ -123,50 +111,40 @@ export async function PATCH(req: Request, { params }: { params: { id: string; me
           return NextResponse.json({ message: "User banned and removed successfully." }, { status: 200 });
 
         } catch (error: any) {
-           // Handle potential error where member was already deleted (P2025)
            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-             // Ban should have been upserted
              return NextResponse.json({ message: "User banned successfully (was already removed)." }, { status: 200 });
            }
-           // Re-throw other errors
            throw error;
         }
 
-      } else { // status === 'ACTIVE' (UNBANNING)
-        // UNBANNING: Delete Ban Record
-        await prisma.organizationBan.deleteMany({ // Use deleteMany in case of duplicates, though unique constraint should prevent this
+      } else {
+        await prisma.organizationBan.deleteMany({
           where: {
             userId: targetUserId,
             organizationId: organizationId,
           },
         });
 
-        // Optional: Re-add member immediately? For now, just unban. They can rejoin.
-        // await prisma.organizationMember.create({ data: { userId: targetUserId, organizationId: organizationId, role: 'MEMBER', status: 'ACTIVE' }});
 
-        // TODO: Add audit log for unbanning
         return NextResponse.json({ message: "User unbanned successfully. They can rejoin the organization." }, { status: 200 });
       }
     }
 
-    // If neither role nor status was provided or valid
     return NextResponse.json({ message: "Invalid request. Provide 'role' or 'status' ('ACTIVE'/'BANNED')." }, { status: 400 });
 
   } catch (error: any) {
     console.error("Error updating organization member:", error);
-    // Handle specific Prisma errors if needed
-    if (error.code === 'P2025') { // Record to update/delete not found
+    if (error.code === 'P2025') {
         return NextResponse.json({ message: "Member not found." }, { status: 404 });
     }
     return NextResponse.json({ message: "Failed to update organization member." }, { status: 500 });
   }
 }
 
-// DELETE handler to remove (kick) a member
 export async function DELETE(req: Request, { params }: { params: { id: string; memberId: string } }) {
   const session = await getServerSession(authOptions);
   const organizationId = params.id;
-  const targetUserId = params.memberId; // The ID of the user being removed
+  const targetUserId = params.memberId;
 
   if (!session?.user?.id) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -174,7 +152,6 @@ export async function DELETE(req: Request, { params }: { params: { id: string; m
 
   const requestingUserId = session.user.id;
 
-  // Check if the requesting user is an admin OR if the user is removing themselves
   const requestingUserRole = await getUserRole(requestingUserId, organizationId);
   const isSelfRemoval = requestingUserId === targetUserId;
 
@@ -183,7 +160,6 @@ export async function DELETE(req: Request, { params }: { params: { id: string; m
   }
 
   try {
-    // Check if trying to remove/leave the last admin
     const targetMember = await prisma.organizationMember.findUnique({
       where: { userId_organizationId: { userId: targetUserId, organizationId: organizationId } },
       select: { role: true },
@@ -198,7 +174,6 @@ export async function DELETE(req: Request, { params }: { params: { id: string; m
       }
     }
 
-    // Delete the member
     await prisma.organizationMember.delete({
       where: {
         userId_organizationId: {
@@ -208,7 +183,6 @@ export async function DELETE(req: Request, { params }: { params: { id: string; m
       },
     });
 
-    // TODO: Add audit log entry for member removal/leave
 
     const message = isSelfRemoval ? "Successfully left the organization." : "Member removed successfully.";
     return NextResponse.json({ message: message }, { status: 200 });

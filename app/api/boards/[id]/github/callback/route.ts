@@ -5,7 +5,6 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 
 interface RouteContext { params: { id: string } }
 
-// GET /api/boards/[id]/github/callback?code=...&state=boardId
 export async function GET(req: Request, { params }: RouteContext) {
   const url = new URL(req.url)
   const code = url.searchParams.get('code')
@@ -16,7 +15,6 @@ export async function GET(req: Request, { params }: RouteContext) {
     return NextResponse.json({ message: 'Code not provided' }, { status: 400 })
   }
 
-  // Exchange code for access token
   const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -34,12 +32,10 @@ export async function GET(req: Request, { params }: RouteContext) {
     return NextResponse.json({ message: 'Failed to get access token' }, { status: 400 })
   }
 
-  // Store token and mark enabled
   await prisma.board.update({
     where: { id: boardId },
     data: { githubEnabled: true, githubToken: accessToken }
   })
 
-  // Redirect back to settings page
   return NextResponse.redirect(new URL(`/board/${boardId}/settings?tab=github&connected=true`, process.env.NEXTAUTH_URL).toString())
 }

@@ -54,7 +54,6 @@ export async function GET(request: Request) {
       take: 50,
     });
 
-    // Map the data to the structure expected by the frontend
     const formattedNotifications = notifications.map((n) => ({
       id: n.id,
       type: n.type,

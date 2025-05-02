@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -33,10 +34,11 @@ interface PublicBoard {
     name: string
     slug: string
     imageUrl: string | null
-  } | null // personal boards have no org
+  } | null
 }
 
 export default function DiscoverPage() {
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [organizations, setOrganizations] = useState<PublicOrganization[]>([])
   const [boards, setBoards] = useState<PublicBoard[]>([])
@@ -182,43 +184,45 @@ export default function DiscoverPage() {
               </div>
             ) : (
               filteredBoards.map((board) => (
-                <Link key={board.id} href={`/board/${board.id}`} className="block"> 
-                  <Card className="h-full hover:bg-muted/50 transition-colors overflow-hidden flex flex-col">
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg">{board.name}</CardTitle>
-                        <Badge variant="outline" className="gap-1 text-xs font-normal">
-                          <Globe className="h-3 w-3" />
-                          Public
-                        </Badge>
-                      </div>
-                      <CardDescription className="mt-1 line-clamp-2">{board.description || "No description provided."}</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex-grow">
-                      {board.organization ? (
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="text-muted-foreground flex items-center gap-1">
-                            <Image src={board.organization.imageUrl || "/placeholder-logo.svg"} alt={board.organization.name} width={16} height={16} className="rounded-sm" />
-                            <Link
-                              href={`/organization/${board.organization.slug}`}
-                              className="hover:underline"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {board.organization.name}
-                            </Link>
-                          </div>
+                <Card
+                  key={board.id}
+                  className="h-full hover:bg-muted/50 transition-colors overflow-hidden flex flex-col cursor-pointer"
+                  onClick={() => router.push(`/board/${board.id}`)}
+                >
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">{board.name}</CardTitle>
+                      <Badge variant="outline" className="gap-1 text-xs font-normal">
+                        <Globe className="h-3 w-3" />
+                        Public
+                      </Badge>
+                    </div>
+                    <CardDescription className="mt-1 line-clamp-2">{board.description || "No description provided."}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex-grow">
+                    {board.organization ? (
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="text-muted-foreground flex items-center gap-1">
+                          <Image src={board.organization.imageUrl || "/placeholder-logo.svg"} alt={board.organization.name} width={16} height={16} className="rounded-sm" />
+                          <Link
+                            href={`/organization/${board.organization.slug}`}
+                            className="hover:underline"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {board.organization.name}
+                          </Link>
                         </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Personal board</p>
-                      )}
-                    </CardContent>
-                    <CardFooter>
-                      <Button variant="outline" size="sm" className="w-full">
-                        View Board
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                </Link>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Personal board</p>
+                    )}
+                  </CardContent>
+                  <CardFooter>
+                    <Button variant="outline" size="sm" className="w-full">
+                      View Board
+                    </Button>
+                  </CardFooter>
+                </Card>
               ))
             )}
           </div>

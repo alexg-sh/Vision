@@ -37,7 +37,7 @@ export async function POST(req: Request, { params: paramsPromise }: { params: Pr
   if (!session?.user?.id) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }
-  const params = await paramsPromise // Await the params Promise
+  const params = await paramsPromise
   const { postId } = params
   const { content } = await req.json()
   if (!content || typeof content !== 'string') {

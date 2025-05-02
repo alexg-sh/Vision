@@ -8,8 +8,6 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const userId = searchParams.get('userId');
 
-  // If userId is provided in query, fetch that user's profile (public view)
-  // If no userId, fetch the logged-in user's profile (private view)
   const targetUserId = userId || session?.user?.id;
 
   if (!targetUserId) {
@@ -23,15 +21,13 @@ export async function GET(request: NextRequest) {
         id: true,
         username: true,
         name: true,
-        email: true, // Be cautious about exposing email publicly if not intended
+        email: true,
         image: true,
         bio: true,
         website: true,
         twitter: true,
         linkedin: true,
         github: true,
-        // Add any other public profile fields you want to expose
-        // Exclude sensitive fields like passwordHash
       },
     });
 
@@ -66,7 +62,6 @@ export async function PUT(request: NextRequest) {
         twitter,
         linkedin,
         github,
-        // allow updating other safe fields if needed
       },
       select: {
         id: true,
@@ -84,23 +79,34 @@ export async function PUT(request: NextRequest) {
       }
     });
 
-    // --- Audit log for profile update ---
-    await fetch(process.env.NEXT_PUBLIC_BASE_URL + '/api/audit-log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'UPDATE_USER_PROFILE',
-        entityType: 'USER',
-        entityId: userId,
-        entityName: name || username,
-        details: { updatedFields: Object.keys({ username, name, bio, avatar, website, twitter, linkedin, github }).filter(key => !!body[key]) }
-      })
-    });
-    // --- End audit log ---
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    if (!baseUrl) {
+      console.error('ERROR: NEXT_PUBLIC_BASE_URL environment variable is not defined.');
+      return NextResponse.json({ error: 'Internal server configuration error: Base URL for audit log is missing.' }, { status: 500 });
+    }
+
+    try {
+      await fetch(`${baseUrl}/api/audit-log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'UPDATE_USER_PROFILE',
+          entityType: 'USER',
+          entityId: userId,
+          entityName: name || username,
+          details: { updatedFields: Object.keys({ username, name, bio, avatar, website, twitter, linkedin, github }).filter(key => !!body[key]) }
+        })
+      });
+    } catch (fetchError) {
+      console.error('Failed to send audit log after profile update:', fetchError);
+    }
 
     return NextResponse.json(updated);
   } catch (error) {
     console.error('Failed to update profile:', error);
+    if (error instanceof Error && error.message.includes('Base URL for audit log is missing')) {
+      return;
+    }
     return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
   }
 }

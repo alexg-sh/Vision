@@ -35,9 +35,7 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
   const [currentPeriod, setCurrentPeriod] = useState(new Date())
   const [roadmapItems, setRoadmapItems] = useState<RoadmapItem[]>([])
 
-  // In a real app, you would fetch this data from your API
   useEffect(() => {
-    // Mock data for demonstration
     const mockRoadmapItems: RoadmapItem[] = [
       {
         id: 1,
@@ -156,7 +154,7 @@ export default function RoadmapPage({ params }: { params: { id: string } }) {
 
   const getWeekRange = (date: Date) => {
     const day = date.getDay()
-    const diff = date.getDate() - day + (day === 0 ? -6 : 1) // Adjust for Sunday
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1)
     const start = new Date(date)
     start.setDate(diff)
     const end = new Date(start)

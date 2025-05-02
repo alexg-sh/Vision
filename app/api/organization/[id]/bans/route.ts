@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// GET /api/organization/[id]/bans
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   const organizationId = params.id;
   try {

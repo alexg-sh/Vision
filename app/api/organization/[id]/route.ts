@@ -2,9 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { getMembershipStatus } from "@/lib/permissions"; // Add this import
+import { getMembershipStatus } from "@/lib/permissions";
 
-// Helper function to check if user is an admin of the organization
 async function isOrgAdmin(userId: string, organizationId: string): Promise<boolean> {
   console.log(`Checking admin status for userId: ${userId} in organizationId: ${organizationId}`);
   const member = await prisma.organizationMember.findUnique({
@@ -14,7 +13,7 @@ async function isOrgAdmin(userId: string, organizationId: string): Promise<boole
         organizationId: organizationId,
       },
     },
-    select: { role: true, status: true }, // Select status too for context
+    select: { role: true, status: true },
   });
   console.log(`Found member record:`, member);
   const isAdmin = member?.role === 'ADMIN';
@@ -22,18 +21,17 @@ async function isOrgAdmin(userId: string, organizationId: string): Promise<boole
   return isAdmin;
 }
 
-// GET handler to fetch organization details
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: organizationId } = await params;
+  console.log(`[API GET /organization/:id] Received organizationId: ${organizationId}`);
   const session = await getServerSession(authOptions);
   console.log(`GET /api/organization/[id] session userId: ${session?.user?.id}, organizationId: ${organizationId}`);
 
   if (!session?.user?.id) {
-    // Allow fetching public org details even if not logged in
     try {
+      console.log(`[API GET /organization/:id] Unauthenticated user. Querying for public org ID: ${organizationId}`);
       const organization = await prisma.organization.findUnique({
-        where: { id: organizationId, isPrivate: false }, // Only public orgs
-        // Select necessary fields for public view
+        where: { id: organizationId, isPrivate: false },
         select: {
           id: true,
           name: true,
@@ -42,9 +40,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           description: true,
           isPrivate: true,
           createdAt: true,
-          // Exclude sensitive data like members list for non-members
         },
       });
+      console.log(`[API GET /organization/:id] Unauthenticated user. Prisma result:`, organization);
       if (!organization) {
         return NextResponse.json({ message: "Organization not found or is private." }, { status: 404 });
       }
@@ -57,7 +55,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   const userId = session.user.id;
 
-  // Check if the user is a member
   const member = await prisma.organizationMember.findUnique({
     where: {
       userId_organizationId: {
@@ -70,29 +67,26 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   console.log(`Membership record for user ${userId}:`, member);
 
   try {
+    console.log(`[API GET /organization/:id] Authenticated user ${userId}. Querying for org ID: ${organizationId}`);
     const organization = await prisma.organization.findUnique({
       where: { id: organizationId },
-      // Include details needed for settings page
       include: {
         _count: { select: { members: true, boards: true } },
-        // Add other relations if needed, but avoid fetching full members list here
-        // Members list will be fetched separately via /api/organization/[id]/members
       },
     });
+    console.log(`[API GET /organization/:id] Authenticated user. Prisma result:`, organization);
 
     if (!organization) {
       return NextResponse.json({ message: "Organization not found." }, { status: 404 });
     }
 
-    // If the org is private and the user is not a member, deny access
     if (organization.isPrivate && !member) {
       return NextResponse.json({ message: "Forbidden: You do not have access to this private organization." }, { status: 403 });
     }
 
-    // Add the requesting user's role to the response
     const organizationWithRole = {
       ...organization,
-      userRole: member?.role || null, // null if user is not a member (only possible for public orgs)
+      userRole: member?.role || null,
     };
 
     return NextResponse.json(organizationWithRole, { status: 200 });
@@ -103,7 +97,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
 }
 
-// PUT handler to update organization details
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: organizationId } = await params;
   const session = await getServerSession(authOptions);
@@ -114,26 +107,22 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
   const userId = session.user.id;
 
-  // Check if the user is an admin of this organization
-  const membershipStatus = await getMembershipStatus(userId, organizationId); // Use getMembershipStatus
-  if (!membershipStatus.isAdmin) { // Check isAdmin from the result
+  const membershipStatus = await getMembershipStatus(userId, organizationId);
+  if (!membershipStatus.isAdmin) {
     return NextResponse.json({ message: "Forbidden: Only admins can update organization settings." }, { status: 403 });
   }
-  // Also check if banned
   if (membershipStatus.isBanned) {
       return NextResponse.json({ message: "Forbidden: You are banned from this organization." }, { status: 403 });
   }
 
-  let body: any = null; // Initialize body to null
+  let body: any = null;
   try {
     body = await req.json();
 
-    // Validate input (add more validation as needed)
     const updateData: { name?: string; description?: string | null; imageUrl?: string | null; isPrivate?: boolean } = {};
 
     if (typeof body.name === 'string' && body.name.trim()) {
       updateData.name = body.name.trim();
-      // TODO: Consider updating slug if name changes, handle potential conflicts
     }
     if (typeof body.description === 'string') {
       updateData.description = body.description;
@@ -149,41 +138,31 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ message: "No valid fields provided for update." }, { status: 400 });
     }
 
-    // Perform the update
     const updatedOrganization = await prisma.organization.update({
       where: { id: organizationId },
       data: updateData,
-      // Include necessary fields for the response
       include: {
         _count: { select: { members: true, boards: true } },
       }
     });
 
-    // Add the user's role back into the response object
     const responseWithRole = {
       ...updatedOrganization,
-      userRole: membershipStatus.role // Add role from membershipStatus
+      userRole: membershipStatus.role
     };
 
-    // TODO: Add audit log entry for organization update
 
-    return NextResponse.json(responseWithRole, { status: 200 }); // Return updated org with role
+    return NextResponse.json(responseWithRole, { status: 200 });
 
   } catch (error: any) {
     console.error("Error updating organization:", error);
-    // Handle potential errors like Prisma errors or JSON parsing errors
     if (error instanceof SyntaxError) {
         return NextResponse.json({ message: "Invalid request body." }, { status: 400 });
     }
-    // Handle potential Prisma unique constraint errors if slug update is added
-    // if (error.code === 'P2002' && error.meta?.target?.includes('slug')) {
-    //    return NextResponse.json({ message: "Organization name (slug) is already taken." }, { status: 409 });
-    // }
     return NextResponse.json({ message: "Failed to update organization." }, { status: 500 });
   }
 }
 
-// DELETE handler to delete the organization
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: organizationId } = await params;
   const session = await getServerSession(authOptions);
@@ -194,19 +173,16 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
   const userId = session.user.id;
 
-  // Check if the user is an admin of this organization
   const isAdmin = await isOrgAdmin(userId, organizationId);
   if (!isAdmin) {
     return NextResponse.json({ message: "Forbidden: Only admins can delete the organization." }, { status: 403 });
   }
 
   try {
-    // Perform deletion using a transaction if needed (e.g., delete related data)
     await prisma.organization.delete({
       where: { id: organizationId },
     });
 
-    // TODO: Add audit log entry for organization deletion
 
     return NextResponse.json({ message: "Organization deleted successfully." }, { status: 200 });
   } catch (error: any) {

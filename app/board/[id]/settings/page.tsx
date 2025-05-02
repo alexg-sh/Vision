@@ -105,7 +105,6 @@ export default function BoardSettingsPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([])
   const [isLoadingAudit, setIsLoadingAudit] = useState(false)
 
-  // derive userRole from session and membership
   const { data: session, status: sessionStatus } = useSession()
   useEffect(() => {
     if (sessionStatus === 'authenticated') {
@@ -131,7 +130,6 @@ export default function BoardSettingsPage() {
         throw new Error(message)
       }
       const data = await res.json()
-      // track creator for permission checks
       setCreatedById(data.createdById || "")
       setIsGithubConnected(data.githubEnabled)
       setGithubRepo(data.githubRepo || "")
@@ -478,7 +476,6 @@ export default function BoardSettingsPage() {
     )
   }
 
-  // Grant access if admin, moderator, or board creator
   const currentUserId = session?.user?.id || null
   const canView = userRole === 'admin' || userRole === 'moderator' || currentUserId === createdById
   if (!canView) {

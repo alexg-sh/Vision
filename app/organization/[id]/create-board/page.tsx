@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react" // Import useEffect
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,19 +8,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { Building2, Loader2 } from "lucide-react" // Import Loader2
+import { Building2, Loader2 } from "lucide-react"
 import DashboardHeader from "@/components/dashboard-header"
-// Define Organization type manually based on your Prisma schema
 interface Organization {
   id: string;
   name: string;
-  // Add other fields as per your schema
 }
 
-// Define props type including organization fetched server-side
 interface CreateBoardPageProps {
   params: { id: string };
-  organization: Organization | null; // Fetched organization data
+  organization: Organization | null;
 }
 
 export default function CreateBoardPage({ params, organization }: CreateBoardPageProps) {
@@ -30,24 +27,22 @@ export default function CreateBoardPage({ params, organization }: CreateBoardPag
   const [boardImage, setBoardImage] = useState("/placeholder.svg?height=200&width=400")
   const [isPrivate, setIsPrivate] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null) // Add error state
+  const [error, setError] = useState<string | null>(null)
 
-  // Redirect if organization data couldn't be fetched server-side
   useEffect(() => {
     if (!organization) {
-      // Optionally show an error message before redirecting
       console.error("Organization not found, redirecting...");
-      router.push('/dashboard'); // Redirect to a safe page
+      router.push('/dashboard');
     }
   }, [organization, router]);
 
   const handleCreateBoard = async () => {
     if (boardName.trim() && organization) {
       setIsLoading(true)
-      setError(null) // Clear previous errors
+      setError(null)
 
       try {
-        const response = await fetch(`/api/organization/${organization.id}/boards`, { // Use actual API endpoint
+        const response = await fetch(`/api/organization/${organization.id}/boards`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -64,20 +59,17 @@ export default function CreateBoardPage({ params, organization }: CreateBoardPag
           throw new Error(errorData.message || 'Failed to create board');
         }
 
-        // Redirect to the organization page after creating the board
         router.push(`/organization/${params.id}`)
-        router.refresh() // Optional: refresh server data on the target page
+        router.refresh()
 
       } catch (err: any) {
         console.error("Error creating board:", err);
         setError(err.message || "An unexpected error occurred.");
-        setIsLoading(false); // Stop loading on error
+        setIsLoading(false);
       }
-      // No finally block needed if redirecting on success
     }
   }
 
-  // Show loading or error state if organization is not yet available
   if (!organization) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
@@ -188,21 +180,4 @@ export default function CreateBoardPage({ params, organization }: CreateBoardPag
   )
 }
 
-// --- Add getServerSideProps or modify if using App Router with server component fetching ---
-// This example assumes you modify the page to fetch data server-side if using App Router
-// or use getServerSideProps if using Pages Router.
 
-// Example for App Router (modify the default export function signature if needed)
-// export async function getServerSideProps(context: { params: { id: string } }) {
-//   const { id } = context.params;
-//   let organization: Organization | null = null;
-//   try {
-//     organization = await prisma.organization.findUnique({
-//       where: { id },
-//     });
-//   } catch (error) {
-//     console.error("Failed to fetch organization:", error);
-//   }
-//   // Basic check if user has access could be added here
-//   return { props: { organization, params: context.params } };
-// }

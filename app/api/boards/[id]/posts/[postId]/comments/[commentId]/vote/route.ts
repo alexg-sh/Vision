@@ -12,7 +12,6 @@ export async function POST(_req: Request, { params: paramsPromise }: { params: P
   if (![1, -1].includes(voteType)) return NextResponse.json({ message: 'Invalid voteType' }, { status: 400 })
 
   return await prisma.$transaction(async (tx) => {
-    // Manage vote create, update or delete
     const existing = await tx.commentVote.findFirst({ where: { userId, commentId } })
     let newType: number
     if (existing) {
@@ -27,10 +26,8 @@ export async function POST(_req: Request, { params: paramsPromise }: { params: P
       await tx.commentVote.create({ data: { userId, commentId, voteType } })
       newType = voteType
     }
-    // Recalculate net votes from database
     const agg = await tx.commentVote.aggregate({ where: { commentId }, _sum: { voteType: true } })
     const votes = agg._sum.voteType ?? 0
-    // Update comment votes to reflect accurate total
     const updated = await tx.comment.update({ where: { id: commentId }, data: { votes }, select: { votes: true } })
     return NextResponse.json({ votes: updated.votes, userVote: newType })
   })

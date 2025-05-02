@@ -50,6 +50,7 @@ export type PostWithClientData = {
   userVote: number | null;
   pollOptions?: PollOption[];
   userPollVote?: number | null;
+  pollSelection?: number | null;  // Temporary selection state before submitting
   githubIssue?: GithubIssue | null;
   status?: string;
   comments?: number;

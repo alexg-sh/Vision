@@ -5,6 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button, buttonVariants } from "@/components/ui/button"
+import PostCreationDialog from "@/components/post-creation-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import {
   Dialog,
@@ -74,6 +75,7 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
   const router = useRouter()
   const { toast } = useToast()
   const [posts, setPosts] = useState<PostWithClientData[]>(initialPosts)
+  const [pollSelections, setPollSelections] = useState<Record<string, number>>({});
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [postToDelete, setPostToDelete] = useState<PostWithClientData | null>(null)
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
@@ -81,11 +83,7 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
   const [activeTab, setActiveTab] = useState("all")
   const currentUserId = getCurrentUserId()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-  const [newPostTitle, setNewPostTitle] = useState("")
-  const [newPostContent, setNewPostContent] = useState("")
-  const [newPostTags, setNewPostTags] = useState("")
   const [isCreatingPost, setIsCreatingPost] = useState(false)
-  const [createError, setCreateError] = useState<string | null>(null)
   const [selectedPostIds, setSelectedPostIds] = useState<Set<string>>(new Set())
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -122,15 +120,39 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
   }
 
   const handlePollVote = (postId: string, optionId: number) => {
-    setPosts(
-      posts.map((p) => {
-        if (p.id === postId) {
-          return { ...p, userPollVote: optionId }
-        }
-        return p
-      })
-    )
+    const post = posts.find(p => p.id === postId);
+    if (post?.userPollVote != null) return;
+    setPollSelections(prev => ({ ...prev, [postId]: optionId }));
   }
+
+  const handlePollSubmit = async (postId: string) => {
+    const selectedOptionId = pollSelections[postId];
+    if (selectedOptionId == null) return;
+
+    try {
+      const res = await fetch(
+        `/api/boards/${board.id}/posts/${postId}/poll-vote`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ optionId: selectedOptionId }) }
+      );
+      if (res.ok) {
+        const { pollOptions, userPollVote } = await res.json();
+        setPosts(posts.map(p => p.id === postId
+          ? { ...p, pollOptions, userPollVote }
+          : p
+        ));
+        setPollSelections(prev => { const { [postId]: _, ...rest } = prev; return rest; });
+        toast({ title: 'Vote recorded' });
+      } else {
+        const errorData = await res.json();
+        toast({ variant: 'destructive', title: 'Vote failed', description: errorData.message || 'Could not record vote.' });
+        setPollSelections(prev => { const { [postId]: _, ...rest } = prev; return rest; });
+      }
+    } catch (err) {
+      console.error('Poll vote error', err);
+      toast({ variant: 'destructive', title: 'Vote failed' });
+      setPollSelections(prev => { const { [postId]: _, ...rest } = prev; return rest; });
+    }
+  };
 
   const handleDeletePost = (post: PostWithClientData) => {
     setPostToDelete(post)
@@ -189,39 +211,6 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
     }
   }
 
-  const submitNewPost = async () => {
-    if (!newPostTitle.trim()) {
-      setCreateError("Title is required")
-      return
-    }
-    const tags = newPostTags.split(',').map(t => t.trim()).filter(Boolean)
-    setIsCreatingPost(true)
-    setCreateError(null)
-    try {
-      const res = await fetch(`/api/boards/${board.id}/posts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newPostTitle, content: newPostContent, tags }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.message || "Failed to create post")
-      }
-      const created = await res.json()
-      setPosts([created, ...posts])
-      setIsCreateDialogOpen(false)
-      setNewPostTitle("")
-      setNewPostContent("")
-      setNewPostTags("")
-      toast({ title: "Post created" })
-    } catch (err: any) {
-      setCreateError(err.message || "Unexpected error")
-      toast({ variant: "destructive", title: "Error", description: err.message })
-    } finally {
-      setIsCreatingPost(false)
-    }
-  }
-
   const fetchPosts = async (sortBy?: string) => {
     setIsLoading(true)
     try {
@@ -274,6 +263,7 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
           <Checkbox
             checked={selectedPostIds.has(post.id)}
             onCheckedChange={(checked) => handleSelectPost(post.id, !!checked)}
+            onClick={(e) => e.stopPropagation()}  // Prevent navigation when clicking checkbox
             aria-label={`Select post ${post.title}`}
             className="bg-background border-border"
           />
@@ -311,10 +301,7 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
               <ThumbsDown className="h-4 w-4" />
             </Button>
           </div>
-          <div
-            className="flex-1 p-4 cursor-pointer"
-            onClick={() => router.push(`/board/${board.id}/post/${post.id}`)}
-          >
+          <div className="flex-1 p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                 <Avatar className="h-6 w-6">
@@ -332,7 +319,6 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
                     <span>·</span>
                     <Badge variant="outline" className="flex items-center gap-1">
                       <Github className="h-3 w-3" />
-                      #{post.githubIssue.number}
                     </Badge>
                   </>
                 )}
@@ -358,7 +344,12 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            <h3 className="text-lg font-semibold mb-2 hover:underline">{post.title}</h3>
+            <h3
+              className="text-lg font-semibold mb-2 hover:underline cursor-pointer"
+              onClick={() => router.push(`/board/${board.id}/post/${post.id}`)}
+            >
+              {post.title}
+            </h3>
             {post.tags?.length ? (
               <div className="flex flex-wrap gap-1 mb-2">
                 {post.tags.map((tag) => (
@@ -367,22 +358,30 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
               </div>
             ) : null}
             {post.pollOptions && post.pollOptions.length > 0 && (
-              <RadioGroup
-                value={post.userPollVote?.toString()}
-                onClick={(e) => e.stopPropagation()}
-                onValueChange={(value) => handlePollVote(post.id, parseInt(value))}
-                className="space-y-2 mb-4"
-              >
-                {post.pollOptions.map((option: PollOption) => (
-                  <div key={option.id} className="flex items-center space-x-2">
-                    <RadioGroupItem value={option.id.toString()} id={`poll-${post.id}-opt-${option.id}`} />
-                    <Label htmlFor={`poll-${post.id}-opt-${option.id}`} className="flex-1 cursor-pointer">
-                      {option.text}
-                    </Label>
-                    <span className="text-sm text-muted-foreground">({option.votes} votes)</span>
-                  </div>
-                ))}
-              </RadioGroup>
+              <div className="space-y-2 p-4 poll-block">
+                <Label>Poll</Label>
+                <RadioGroup 
+                  value={(pollSelections[post.id] ?? post.userPollVote)?.toString() || ''}
+                  onValueChange={(v) => handlePollVote(post.id, Number(v))}
+                >
+                  {post.pollOptions.map((opt) => (
+                    <div key={opt.id} className="flex items-center">
+                      <RadioGroupItem 
+                        value={opt.id.toString()} 
+                        disabled={post.userPollVote != null} 
+                        onClick={(e) => e.stopPropagation()} // Prevent card navigation
+                      />
+                      <span className="ml-2 flex-1">{opt.text}</span>
+                      <span className="text-sm text-muted-foreground">{opt.votes}</span>
+                    </div>
+                  ))}
+                </RadioGroup>
+                {post.userPollVote == null && pollSelections[post.id] != null && (
+                  <Button size="sm" onClick={(e) => { e.stopPropagation(); handlePollSubmit(post.id); }}>
+                    Submit Vote
+                  </Button>
+                )}
+              </div>
             )}
             {post.content && !post.pollOptions && (
               <p className="text-sm text-muted-foreground mb-4 line-clamp-3">{post.content}</p>
@@ -413,69 +412,37 @@ export default function BoardClient({ board, initialPosts, userRole }: BoardClie
         </div>
         <div className="flex items-center space-x-2">
           {canCreatePost && (
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" /> Create Post
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>New Post</DialogTitle>
-                  <DialogDescription>Use markdown to format content, include image URLs.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="new-post-title">Title *</Label>
-                    <Input
-                      id="new-post-title"
-                      value={newPostTitle}
-                      onChange={(e) => setNewPostTitle(e.target.value)}
-                      disabled={isCreatingPost}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="new-post-content">Content (Markdown)</Label>
-                    <Textarea
-                      id="new-post-content"
-                      value={newPostContent}
-                      onChange={(e) => setNewPostContent(e.target.value)}
-                      disabled={isCreatingPost}
-                      rows={6}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="new-post-tags">Tags (comma separated)</Label>
-                    <Input
-                      id="new-post-tags"
-                      value={newPostTags}
-                      onChange={(e) => setNewPostTags(e.target.value)}
-                      disabled={isCreatingPost}
-                    />
-                  </div>
-                  {newPostContent && (
-                    <div className="border p-4 rounded-md">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{newPostContent}</ReactMarkdown>
-                    </div>
-                  )}
-                  {createError && <p className="text-sm text-destructive">Error: {createError}</p>}
-                </div>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsCreateDialogOpen(false)}
-                    disabled={isCreatingPost}
-                  >
-                    Cancel
-                  </Button>
-                  <Button onClick={submitNewPost} disabled={isCreatingPost}>
-                    {isCreatingPost ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {isCreatingPost ? "Posting..." : "Post"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Button onClick={() => setIsCreateDialogOpen(true)} disabled={isCreatingPost}>
+              <Plus className="mr-2 h-4 w-4" /> New Post
+            </Button>
           )}
+          <PostCreationDialog
+            open={isCreateDialogOpen}
+            onOpenChange={setIsCreateDialogOpen}
+            boardId={board.id}
+            userRole={userRole}
+            onSubmit={async (data) => {
+              setIsCreatingPost(true);
+              try {
+                const res = await fetch(`/api/boards/${board.id}/posts`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    title: data.title,
+                    content: data.description,
+                    tags: [], // adjust if tags supported
+                    pollOptions: data.pollOptions,
+                  }),
+                });
+                const created = await res.json();
+                setPosts((ps) => [created, ...ps]);
+              } catch (err) {
+                console.error('Error creating post:', err);
+              } finally {
+                setIsCreatingPost(false);
+              }
+            }}
+          />
           {canManageBoard && (
             <>
               <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>

@@ -39,6 +39,7 @@ model User {
   bannedBoardActions   BoardMember[]        @relation("BannedBoardUsers")
   postVotes            PostVote[]
   commentVotes         CommentVote[]
+  pollVotes            PollVote[] // Add relation to PollVote
   followers            Follow[]             @relation("followers")
   following            Follow[]             @relation("following")
   preference           UserPreference?
@@ -209,8 +210,10 @@ model Post {
   author        User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
   votes         Int            @default(0)
   tags          String[]       @default([])
+  pollOptions   Json?          // JSON array of { id, text, votes } for polls
   comments      Comment[]
   postVotes     PostVote[]
+  pollVotes     PollVote[] // Add relation to PollVote
   notifications  Notification[]  // Restore relation for notifications
   githubIssueNumber Int?
   githubIssueUrl    String?      @db.VarChar(255)
@@ -261,6 +264,21 @@ model CommentVote {
 
   @@unique([userId, commentId])
   @@index([commentId])
+}
+
+model PollVote {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  optionId  Int      // The ID of the chosen option from the pollOptions JSON
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId]) // Ensure a user can only vote once per poll
+  @@index([postId])
+  @@index([userId])
 }
 
 model AuditLog {

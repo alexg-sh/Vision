@@ -10,7 +10,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { ArrowLeft, ThumbsDown, ThumbsUp, Github } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
-// Define interfaces for data structures
 interface Author {
   name: string;
   avatar?: string;
@@ -65,7 +64,6 @@ export default function PostDetailPage({ params: paramsPromise }: { params: Prom
   const [newComment, setNewComment] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // GitHub integration state
   const { toast } = useToast()
   const [repoEnabled, setRepoEnabled] = useState(false)
   const [issues, setIssues] = useState<Array<{ number: number; title: string; url: string }>>([])
@@ -88,7 +86,6 @@ export default function PostDetailPage({ params: paramsPromise }: { params: Prom
     }
     fetchData()
 
-    // Load GitHub issues if board integration enabled
     async function loadIntegration() {
       try {
         const res = await fetch(`/api/boards/${boardId}`)
@@ -332,7 +329,7 @@ export default function PostDetailPage({ params: paramsPromise }: { params: Prom
             {post.githubIssue?.linked ? (
               <div className="flex items-center gap-2">
                 <a href={post.githubIssue.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
-                  #{post.githubIssue.number} {post.githubIssue.status}
+                  #{post.githubIssue.number}
                 </a>
                 <Button size="sm" variant="outline" onClick={async () => {
                   try {
@@ -352,9 +349,17 @@ export default function PostDetailPage({ params: paramsPromise }: { params: Prom
                 ) : issuesError ? (
                   <span className="text-destructive">{issuesError}</span>
                 ) : (
-                  <select className="border p-1 rounded" value={selectedIssue ?? ''} onChange={e => setSelectedIssue(Number(e.target.value))}>
+                  <select
+                    className="border p-1 rounded"
+                    value={selectedIssue ?? ''}
+                    onChange={e => setSelectedIssue(Number(e.target.value))}
+                  >
                     <option value="">-- select issue --</option>
-                    {issues.map(i => <option key={i.number} value={i.number}>#{i.number} {i.title}</option>)}
+                    {issues.map(i => (
+                      <option key={i.number} value={i.number}>
+                        {i.title}
+                      </option>
+                    ))}
                   </select>
                 )}
                 <Button size="sm" disabled={!selectedIssue} onClick={async () => {
@@ -363,7 +368,7 @@ export default function PostDetailPage({ params: paramsPromise }: { params: Prom
                   if (!issue) return
                   try {
                     const res = await fetch(`/api/boards/${boardId}/posts/${postId}/github`, {
-                      method: 'PATCH', headers: {'Content-Type':'application/json'},
+                      method: 'PATCH', headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ issueNumber: issue.number, issueUrl: issue.url, issueStatus: 'OPEN' })
                     })
                     if (!res.ok) throw new Error((await res.json()).message)

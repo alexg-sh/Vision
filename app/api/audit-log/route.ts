@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createAuditLog } from '@/lib/audit-log'; // Import the server-only function
+import { createAuditLog } from '@/lib/audit-log';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
-// POST /api/audit-log
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
 
-  // Ensure user is authenticated
   if (!session?.user?.id) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
@@ -15,16 +13,13 @@ export async function POST(req: Request) {
   try {
     const logData = await req.json();
 
-    // Validate required fields (add more specific validation as needed)
     if (!logData.action || !logData.entityType || !logData.entityId || !logData.entityName) {
        return NextResponse.json({ message: 'Missing required audit log fields' }, { status: 400 });
     }
 
-    // Call the server-only createAuditLog function
-    // It will automatically pick up the userId from the session
     await createAuditLog({
-        orgId: logData.orgId, // Pass orgId if available
-        boardId: logData.boardId, // Pass boardId if available
+        orgId: logData.orgId,
+        boardId: logData.boardId,
         action: logData.action,
         entityType: logData.entityType,
         entityId: logData.entityId,
@@ -36,7 +31,6 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error("API Audit Log Error:", error);
-    // Don't expose detailed errors to the client
     if (error.message === 'User not authenticated for audit logging.' || error.message === 'Missing organization or board context for audit log.') {
          return NextResponse.json({ message: 'Failed to create audit log due to server error.' }, { status: 400 });
     }

@@ -5,26 +5,26 @@ import { NextResponse } from 'next/server';
 import { createAuditLog } from '@/lib/audit-log';
 
 interface RouteContext {
-  params: Promise<{ id: string }>; // Corrected: params can be a Promise
+  params: Promise<{ id: string }>;
 }
 
 export async function GET(_req: Request, { params }: RouteContext) {
-  const resolvedParams = await params; // Await params before accessing properties
+  const resolvedParams = await params;
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
   const board = await prisma.board.findUnique({
-    where: { id: resolvedParams.id }, // Use resolvedParams.id
+    where: { id: resolvedParams.id },
     select: {
       id: true,
       name: true,
       description: true,
       image: true,
       isPrivate: true,
-      githubEnabled: true,       // include GitHub integration flag
-      githubRepo: true,          // include linked repository
-      createdById: true          // include creator for permissions
+      githubEnabled: true,
+      githubRepo: true,
+      createdById: true
     },
   });
   if (!board) {
@@ -34,12 +34,11 @@ export async function GET(_req: Request, { params }: RouteContext) {
 }
 
 export async function PUT(req: Request, { params }: RouteContext) {
-  const resolvedParams = await params; // Await params before accessing properties
+  const resolvedParams = await params;
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
-  // Fetch existing board data for audit log
   const before = await prisma.board.findUnique({
     where: { id: resolvedParams.id },
     select: { name: true, description: true, organizationId: true }
@@ -50,15 +49,27 @@ export async function PUT(req: Request, { params }: RouteContext) {
   }
   try {
     const updated = await prisma.board.update({
-      where: { id: resolvedParams.id }, // Use resolvedParams.id
+      where: { id: resolvedParams.id },
       data: {
         name: name.trim(),
         description: description ?? null,
         image: image ?? null,
         isPrivate: Boolean(isPrivate),
       },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        image: true,
+        isPrivate: true,
+        organizationId: true,
+        createdById: true,
+        githubEnabled: true,
+        githubRepo: true,
+        createdAt: true,
+        updatedAt: true,
+      }
     });
-    // Create audit log for board update
     await createAuditLog({
       orgId: before?.organizationId ?? undefined,
       boardId: resolvedParams.id,

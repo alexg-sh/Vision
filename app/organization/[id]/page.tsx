@@ -5,12 +5,11 @@ import { getMembershipStatus } from '@/lib/permissions';
 import { prisma } from '@/lib/prisma';
 import OrganizationClient from './OrganizationClient';
 
-// --- Manual type for OrganizationWithDetails ---
 export type OrganizationWithDetails = {
   id: string;
   name: string;
   description: string | null;
-  imageUrl: string | null; // Changed from image to imageUrl
+  imageUrl: string | null;
   isPrivate: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -18,7 +17,7 @@ export type OrganizationWithDetails = {
     id: string;
     name: string;
     description: string | null;
-    imageUrl: string | null; // Changed from image to imageUrl
+    imageUrl: string | null;
     isPrivate: boolean;
     organizationId: string | null;
     createdById: string;
@@ -41,7 +40,7 @@ export type OrganizationWithDetails = {
       id: string;
       name: string | null;
       email: string | null;
-      image: string | null; // Changed from imageUrl to image
+      image: string | null;
     };
   }>;
   auditLogs: Array<{
@@ -67,14 +66,34 @@ export default async function OrganizationPage({ params }: { params: { id: strin
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
 
-  // enforce membership
-  const membership = await getMembershipStatus(userId ?? '', orgId);
-  if (!membership.isMember || membership.isBanned) {
+  // fetch basic organization to check privacy
+  const orgBasic = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: { isPrivate: true },
+  });
+  if (!orgBasic) {
     notFound();
   }
-  const userRole = (membership.role as string)?.toLowerCase() as 'admin' | 'moderator' | 'creator' | 'member' | 'guest';
 
-  // Fetch organization details including members
+  // check membership only for private orgs or banned users
+  const membership = await getMembershipStatus(userId ?? '', orgId);
+  if (orgBasic.isPrivate) {
+    if (!membership.isMember || membership.isBanned) {
+      notFound();
+    }
+  } else {
+    // public org: block only banned users
+    if (membership.isBanned) {
+      notFound();
+    }
+  }
+
+  // determine role: member roles or guest
+  const userRole = membership.isMember
+    ? (membership.role as string).toLowerCase() as 'admin' | 'moderator' | 'creator' | 'member' | 'guest'
+    : 'guest';
+
+  // fetch full organization details
   const organization = await prisma.organization.findUnique({
     where: { id: orgId },
     include: {
@@ -84,7 +103,7 @@ export default async function OrganizationPage({ params }: { params: { id: strin
       },
       members: {
         include: {
-          user: { select: { id: true, name: true, email: true, image: true } }, // Changed imageUrl to image
+          user: { select: { id: true, name: true, email: true, image: true } },
         },
         orderBy: [{ status: 'asc' }, { role: 'asc' }],
       },

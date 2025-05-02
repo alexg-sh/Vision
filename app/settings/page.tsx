@@ -1,7 +1,7 @@
 "use client"
 
 import { Badge } from "@/components/ui/badge"
-import { useSession } from "next-auth/react"
+import { useSession } from "next-auth/react" // Destructure update function below
 import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -38,9 +38,9 @@ import {
   Twitter,
   Linkedin,
 } from "lucide-react"
-import { formatDistanceToNow } from 'date-fns'; // Import date-fns function
+import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'react-hot-toast';
 
-// Helper function to call the new API route
 async function logAuditAction(logData: Omit<AuditLogProps, 'userId'>) {
   try {
     const response = await fetch('/api/audit-log', {
@@ -51,7 +51,6 @@ async function logAuditAction(logData: Omit<AuditLogProps, 'userId'>) {
     if (!response.ok) {
       const errorData = await response.json();
       console.error("Failed to create audit log:", errorData.message);
-      // Optionally, handle this error more visibly
     }
   } catch (error) {
     console.error("Error calling audit log API:", error);
@@ -62,13 +61,12 @@ interface UserSession {
   id: string;
   sessionToken: string;
   userId: string;
-  expires: string; // ISO date string
+  expires: string;
   isCurrent: boolean;
-  deviceInfo: string; // Placeholder
-  lastActive: string; // ISO date string
+  deviceInfo: string;
+  lastActive: string;
 }
 
-// Define the props type based on your lib/audit-log.ts
 interface AuditLogProps {
   orgId?: string;
   boardId?: string;
@@ -80,20 +78,20 @@ interface AuditLogProps {
 }
 
 export default function AccountSettingsPage() {
-  const { data: session, status } = useSession()
+  const { data: session, status, update } = useSession() // get update()
   const router = useRouter()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
-  const [passwordError, setPasswordError] = useState(""); // Add state for password errors
-  const [avatarError, setAvatarError] = useState(""); // Add state for avatar errors
-  const fileInputRef = useRef<HTMLInputElement>(null); // Ref for file input
+  const [passwordError, setPasswordError] = useState("");
+  const [avatarError, setAvatarError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [sessions, setSessions] = useState<UserSession[]>([]);
   const [sessionError, setSessionError] = useState("");
-  const [error, setError] = useState<string | null>(null); // Add state for general errors
+  const [error, setError] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
-  // User profile state
   const [profile, setProfile] = useState({
     username: "",
     displayName: "",
@@ -106,14 +104,12 @@ export default function AccountSettingsPage() {
     github: "",
   })
 
-  // Password change state
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   })
 
-  // Notification settings state
   const [notificationSettings, setNotificationSettings] = useState({
     emailNotifications: true,
     mentionNotifications: true,
@@ -121,10 +117,9 @@ export default function AccountSettingsPage() {
     voteNotifications: false,
     commentNotifications: true,
     statusChangeNotifications: true,
-    digestEmail: "weekly", // daily, weekly, never
+    digestEmail: "weekly",
   })
 
-  // Connected accounts state
   const [connectedAccounts, setConnectedAccounts] = useState({
     github: true,
     google: false,
@@ -134,16 +129,13 @@ export default function AccountSettingsPage() {
   useEffect(() => {
     if (status === "authenticated" && session?.user?.id) {
       setIsLoading(true)
-      // Fetch user data from an API endpoint
       fetch(`/api/user/profile?userId=${session.user.id}`)
-        .then(async res => { // Make the callback async to await res.text()
+        .then(async res => {
           if (!res.ok) {
-            // Log the raw response text before trying to parse JSON
             const errorText = await res.text();
             console.error('Error fetching profile: Status', res.status, 'Response:', errorText);
             throw new Error(`Failed to fetch profile (status ${res.status})`);
           }
-          // Only attempt to parse JSON if the response is ok
           return res.json()
         })
         .then(data => {
@@ -158,19 +150,16 @@ export default function AccountSettingsPage() {
             linkedin: data.linkedin ?? "",
             github: data.github ?? "",
           })
-          // TODO: Fetch and set notificationSettings and connectedAccounts similarly
         })
         .catch(error => {
           console.error("Error processing user profile data:", error)
-          // Handle error display
         })
         .finally(() => setIsLoading(false))
 
-      // Fetch user sessions
       fetchUserSessions();
 
     } else if (status === "unauthenticated") {
-      router.push("/login") // Redirect if not logged in
+      router.push("/login")
     }
   }, [session, status, router])
 
@@ -196,35 +185,53 @@ export default function AccountSettingsPage() {
 
   const handleProfileUpdate = async () => {
     if (!session?.user?.id) return;
-    setIsLoading(true)
+    setIsLoading(true);
+    setProfileError(null); // Clear previous errors
+    setSuccessMessage(""); // Clear previous success messages
     try {
       const response = await fetch(`/api/user/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: session.user.id, ...profile })
       });
+
       if (!response.ok) {
-        throw new Error('Failed to update profile');
+        let errorMsg = 'Failed to update profile';
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorMsg; // Use specific error from API if available
+        } catch (parseError) {
+          // If response is not JSON or empty, use the default message
+          console.error("Could not parse error response:", parseError);
+        }
+        throw new Error(errorMsg);
       }
+
       const updatedData = await response.json();
-      setSuccessMessage("Profile updated successfully")
-      
-      // Optionally update local state again if response differs
-      // setProfile(updatedData); 
-      setTimeout(() => setSuccessMessage(""), 3000)
+      setSuccessMessage("Profile updated successfully");
+
+      // If username changed, update the session so navbar link updates
+      if (updatedData.username && session?.user) {
+        await update({ user: { ...session.user, username: updatedData.username } });
+      }
+
+      setTimeout(() => setSuccessMessage(""), 3000);
     } catch (error) {
-      console.error("Error updating profile:", error)
-      // Handle error display
+      console.error("Error updating profile:", error);
+      if (error instanceof Error) {
+        setProfileError(error.message);
+      } else {
+        setProfileError("An unknown error occurred while updating the profile.");
+      }
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
   const handlePasswordChange = async () => {
-    setPasswordError(""); // Clear previous errors
-    setSuccessMessage(""); // Clear previous success messages
+    setPasswordError("");
+    setSuccessMessage("");
 
-    // Validate passwords
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       setPasswordError("New passwords don't match");
       return;
@@ -267,7 +274,6 @@ export default function AccountSettingsPage() {
 
     } catch (error) {
         console.error("Error changing password:", error);
-        // Display error message to the user
         if (error instanceof Error) {
             setPasswordError(error.message);
         } else {
@@ -287,12 +293,11 @@ export default function AccountSettingsPage() {
       return;
     }
 
-    // Basic client-side validation (optional, but recommended)
     if (!file.type.startsWith('image/')) {
       setAvatarError("Please select an image file.");
       return;
     }
-    const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
+    const maxSizeInBytes = 5 * 1024 * 1024;
     if (file.size > maxSizeInBytes) {
       setAvatarError("File size should not exceed 5MB.");
       return;
@@ -306,7 +311,6 @@ export default function AccountSettingsPage() {
       const response = await fetch('/api/user/avatar', {
         method: 'POST',
         body: formData,
-        // No 'Content-Type' header needed, browser sets it for FormData
       });
 
       const result = await response.json();
@@ -315,7 +319,6 @@ export default function AccountSettingsPage() {
         throw new Error(result.message || 'Failed to upload avatar');
       }
 
-      // Update profile state with the new avatar URL
       setProfile({ ...profile, avatar: result.avatarUrl });
       setSuccessMessage("Avatar updated successfully");
       setTimeout(() => setSuccessMessage(""), 3000);
@@ -329,7 +332,6 @@ export default function AccountSettingsPage() {
       }
     } finally {
       setIsLoading(false);
-      // Reset file input value so the same file can be selected again if needed
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -347,7 +349,6 @@ export default function AccountSettingsPage() {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to sign out session');
       }
-      // Refresh sessions list
       await fetchUserSessions();
       setSuccessMessage("Session signed out successfully");
       setTimeout(() => setSuccessMessage(""), 3000);
@@ -374,7 +375,6 @@ export default function AccountSettingsPage() {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Failed to sign out other sessions');
       }
-      // Refresh sessions list
       await fetchUserSessions();
       setSuccessMessage("Signed out from all other sessions successfully");
       setTimeout(() => setSuccessMessage(""), 3000);
@@ -404,18 +404,16 @@ export default function AccountSettingsPage() {
       });
 
       if (!response.ok) {
-        // Try to get more specific error message from the API response body
         const errorData = await response.json().catch(() => ({ message: `HTTP error ${response.status}` }));
-        // Correct the console error message
         console.error("Failed to update notification settings:", errorData.message);
         throw new Error('Failed to update notification settings');
       }
 
-      toast({ title: "Success", description: "Notification settings updated." });
+      toast.success("Notification settings updated.");
     } catch (err: any) {
       console.error("Error in handleNotificationSettingsUpdate:", err);
       setError(err.message || "An unexpected error occurred.");
-      toast({ title: "Error", description: err.message || "Could not update settings.", variant: "destructive" });
+      toast.error("Error: " + (err.message || "Could not update settings."));
     } finally {
       setIsLoading(false);
     }
@@ -423,7 +421,6 @@ export default function AccountSettingsPage() {
 
   const handleDeleteAccount = () => {
     setIsLoading(true)
-    // Simulate API call
     setTimeout(() => {
       setIsLoading(false)
       setIsDeleteDialogOpen(false)
@@ -445,7 +442,6 @@ export default function AccountSettingsPage() {
     })
   }
 
-  // Helper function to format session activity time
   const formatSessionTime = (dateString: string) => {
     try {
       return formatDistanceToNow(new Date(dateString), { addSuffix: true });
@@ -456,7 +452,6 @@ export default function AccountSettingsPage() {
   };
 
   if (status === "loading" || isLoading) {
-    // Optional: Show a loading indicator fullscreen or skeleton loaders
     return <div>Loading...</div>
   }
 
@@ -505,7 +500,14 @@ export default function AccountSettingsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {avatarError && ( // Display avatar error message
+                {/* Display Profile Error Message */}
+                {profileError && (
+                  <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive flex items-center gap-2">
+                    <XCircle className="h-5 w-5" />
+                    <span>{profileError}</span>
+                  </div>
+                )}
+                {avatarError && (
                     <div className="my-2 p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
                         {avatarError}
                     </div>
@@ -521,7 +523,7 @@ export default function AccountSettingsPage() {
                       type="file"
                       ref={fileInputRef}
                       onChange={handleAvatarChange}
-                      accept="image/*" // Accept only image files
+                      accept="image/*"
                       style={{ display: 'none' }}
                     />
                     {/* Button triggers the hidden file input */}
@@ -529,7 +531,7 @@ export default function AccountSettingsPage() {
                       variant="outline"
                       size="sm"
                       className="gap-2"
-                      onClick={() => fileInputRef.current?.click()} // Trigger click on hidden input
+                      onClick={() => fileInputRef.current?.click()}
                       disabled={isLoading}
                     >
                       <Upload className="h-4 w-4" />
@@ -669,7 +671,7 @@ export default function AccountSettingsPage() {
                           Enter your current password and a new password to update your account security.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
-                      {passwordError && ( // Display password error message
+                      {passwordError && (
                           <div className="my-2 p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
                               {passwordError}
                           </div>
@@ -730,7 +732,7 @@ export default function AccountSettingsPage() {
                   <p className="text-sm text-muted-foreground">
                     Manage your active sessions and sign out from other devices.
                   </p>
-                  {sessionError && ( // Display session error message
+                  {sessionError && (
                       <div className="my-2 p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
                           {sessionError}
                       </div>
