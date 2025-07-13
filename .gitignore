@@ -13,6 +13,7 @@
 # /export # Uncomment if using `next export`
 
 # Environment Variables - Ignore all local env files
+.env
 .env*.local
 # Ignore specific env files if needed, but keep examples
 # .env.development
@@ -20,6 +21,7 @@
 # .env.production
 # Keep example files
 !.env.example
+!.env.template
 # Keep committed production env if desired (less common)
 # !.env.production
 

@@ -86,15 +86,21 @@ User Browser ↔ Next.js Frontend ↔ Next.js API ↔ Prisma ORM ↔ PostgreSQL
 
 ```bash
 # Clone repository
-git clone <repo-url>
+git clone https://github.com/your-username/project-vision.git
 cd Project_Vision
 
 # Install dependencies
 pnpm install
 
 # Configure environment variables
-cp .env.example .env.local
-# Update .env.local with DATABASE_URL, NEXTAUTH_URL, NEXTAUTH_SECRET
+cp .env.example .env
+# Update .env with your actual values:
+# - DATABASE_URL: Your PostgreSQL connection string
+# - NEXTAUTH_SECRET: Generate with `openssl rand -base64 32`
+# - NEXTAUTH_URL: Your application URL (http://localhost:3000 for local dev)
+# - GITHUB_ID: Your GitHub OAuth App Client ID
+# - GITHUB_SECRET: Your GitHub OAuth App Client Secret
+# - NEXT_PUBLIC_BASE_URL: Your application's public URL
 
 # Run migrations and generate client
 pnpm prisma migrate dev
@@ -164,6 +170,63 @@ The application can be deployed to Vercel or any Node.js hosting with the follow
 2. Configure environment variables in hosting platform.
 3. For Vercel, enable `pnpm prisma migrate deploy` in build hooks.
 
+## Security & Environment Setup
+
+### Environment Variables
+
+This project requires several environment variables to be configured. Copy the example file and update it with your actual values:
+
+```bash
+cp .env.example .env
+```
+
+#### Required Environment Variables
+
+- **DATABASE_URL**: PostgreSQL connection string
+  - Example: `postgresql://username:password@localhost:5432/database_name`
+  - For local development: `postgresql://postgres@localhost:5432/postgres`
+
+- **NEXTAUTH_SECRET**: A secret key for NextAuth.js
+  - Generate with: `openssl rand -base64 32`
+  - Keep this secure and unique for each environment
+
+- **NEXTAUTH_URL**: Your application URL
+  - Development: `http://localhost:3000`
+  - Production: `https://yourdomain.com`
+
+- **GITHUB_ID**: Your GitHub OAuth App Client ID
+  - Create at: https://github.com/settings/developers
+  - Required for GitHub authentication
+
+- **GITHUB_SECRET**: Your GitHub OAuth App Client Secret
+  - Keep this secure and never commit to version control
+
+- **NEXT_PUBLIC_BASE_URL**: Your application's public URL
+  - Same as NEXTAUTH_URL but used on the client side
+
+#### Security Best Practices
+
+1. **Never commit sensitive data**: The `.env` file is gitignored to prevent accidental commits
+2. **Use different secrets for different environments**: Production should have different secrets than development
+3. **Generate strong secrets**: Use cryptographically secure random generators
+4. **Rotate secrets regularly**: Update secrets periodically for better security
+5. **Use environment-specific configurations**: Different database URLs for dev, staging, and production
+
+### GitHub OAuth Setup
+
+To enable GitHub authentication:
+
+1. Go to GitHub Settings → Developer settings → OAuth Apps
+2. Create a new OAuth App with:
+   - Application name: Your app name
+   - Homepage URL: `http://localhost:3000` (for development)
+   - Authorization callback URL: `http://localhost:3000/api/auth/callback/github`
+3. Copy the Client ID and Client Secret to your `.env` file
+4. For production, update the URLs to your actual domain
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
 
 ## References
 
